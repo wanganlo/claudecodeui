@@ -8,7 +8,7 @@ import type {
   AuthenticatedWebSocketRequest,
   LLMProvider,
 } from '@/shared/types.js';
-import { parseIncomingJsonObject } from '@/shared/utils.js';
+import { assertOwnsSession, parseIncomingJsonObject, resolveWsUserId } from '@/shared/utils.js';
 
 /**
  * One provider runtime entry point. All five runtimes share this signature,
@@ -106,7 +106,7 @@ function readRequiredSessionId(data: AnyRecord): string | null {
  */
 async function handleChatSend(
   ws: WebSocket,
-  userId: string | number | null,
+  userId: number | null,
   data: AnyRecord,
   dependencies: ChatWebSocketDependencies
 ): Promise<void> {
@@ -124,6 +124,17 @@ async function handleChatSend(
       `Session "${sessionId}" was not found. Create it via POST /api/providers/sessions first.`,
       sessionId
     );
+    return;
+  }
+
+  if (userId === null) {
+    sendProtocolError(ws, 'SESSION_NOT_FOUND', `Session "${sessionId}" was not found.`, sessionId);
+    return;
+  }
+  try {
+    assertOwnsSession(session, userId);
+  } catch {
+    sendProtocolError(ws, 'SESSION_NOT_FOUND', `Session "${sessionId}" was not found.`, sessionId);
     return;
   }
 
@@ -327,7 +338,7 @@ export function handleChatConnection(
   console.log('[INFO] Chat WebSocket connected');
   connectedClients.add(ws);
 
-  const userId = readRequestUserId(request);
+  const userId = resolveWsUserId(readRequestUserId(request));
 
   ws.on('message', async (rawMessage) => {
     try {

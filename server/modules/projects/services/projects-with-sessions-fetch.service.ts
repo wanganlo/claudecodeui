@@ -128,7 +128,7 @@ function mapSessionRowToSummary(row: SessionRepositoryRow): SessionSummary {
   };
 }
 
-function readProjectSessionsIncludingArchived(projectPath: string, userId: number = 1): ProjectSessionsPageResult {
+function readProjectSessionsIncludingArchived(projectPath: string, userId: number): ProjectSessionsPageResult {
   const rows = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath, userId) as SessionRepositoryRow[];
 
   return {
@@ -143,7 +143,7 @@ function readProjectSessionsIncludingArchived(projectPath: string, userId: numbe
  */
 function readProjectSessionsPageByPath(
   projectPath: string,
-  userId: number = 1,
+  userId: number,
   options: SessionPaginationOptions = {},
 ): ProjectSessionsPageResult {
   const pagination = normalizeSessionPagination(options);
@@ -151,8 +151,9 @@ function readProjectSessionsPageByPath(
     projectPath,
     pagination.limit,
     pagination.offset,
+    userId,
   ) as SessionRepositoryRow[];
-  const total = sessionsDb.countSessionsByProjectPath(projectPath);
+  const total = sessionsDb.countSessionsByProjectPath(projectPath, userId);
 
   return {
     sessions: rows.map(mapSessionRowToSummary),
@@ -269,7 +270,7 @@ export async function getArchivedProjectsWithSessions(
         ? row.custom_project_name
         : await generateDisplayName(path.basename(row.project_path) || row.project_path, row.project_path);
 
-    const sessionsPage = readProjectSessionsIncludingArchived(row.project_path);
+    const sessionsPage = readProjectSessionsIncludingArchived(row.project_path, options.userId ?? 1);
 
     archivedProjects.push({
       projectId: row.project_id,
@@ -294,9 +295,9 @@ export async function getArchivedProjectsWithSessions(
  */
 export async function getProjectSessionsPage(
   projectId: string,
-  options: SessionPaginationOptions = {},
+  options: SessionPaginationOptions & { userId: number },
 ): Promise<ProjectSessionsPageApiView> {
-  const projectRow = projectsDb.getProjectById(projectId);
+  const projectRow = projectsDb.getProjectById(projectId, options.userId);
   if (!projectRow) {
     throw new AppError(`Project "${projectId}" was not found.`, {
       code: 'PROJECT_NOT_FOUND',
@@ -304,7 +305,7 @@ export async function getProjectSessionsPage(
     });
   }
 
-  const sessionsPage = readProjectSessionsPageByPath(projectRow.project_path, 1, options);
+  const sessionsPage = readProjectSessionsPageByPath(projectRow.project_path, options.userId, options);
   return {
     projectId: projectRow.project_id,
     sessions: sessionsPage.sessions,

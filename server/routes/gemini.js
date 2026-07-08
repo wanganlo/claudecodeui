@@ -2,6 +2,7 @@ import express from 'express';
 
 import sessionManager from '../sessionManager.js';
 import { sessionsDb } from '../modules/database/index.js';
+import { requireUserId, assertOwnsSession } from '../shared/utils.js';
 
 const router = express.Router();
 
@@ -11,6 +12,13 @@ router.delete('/sessions/:sessionId', async (req, res) => {
 
         if (!sessionId || typeof sessionId !== 'string' || !/^[a-zA-Z0-9_.-]{1,100}$/.test(sessionId)) {
             return res.status(400).json({ success: false, error: 'Invalid session ID format' });
+        }
+
+        const userId = requireUserId(req);
+        try {
+            assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
+        } catch {
+            return res.status(404).json({ success: false, error: 'Session not found' });
         }
 
         await sessionManager.deleteSession(sessionId);

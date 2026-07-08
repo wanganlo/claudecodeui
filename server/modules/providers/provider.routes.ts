@@ -1,5 +1,6 @@
 import express, { type Request, type Response } from 'express';
 
+import { sessionsDb } from '@/modules/database/index.js';
 import { providerAuthService } from '@/modules/providers/services/provider-auth.service.js';
 import { providerCapabilitiesService } from '@/modules/providers/services/provider-capabilities.service.js';
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
@@ -16,7 +17,7 @@ import type {
   ProviderSkillCreateInput,
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
-import { AppError, asyncHandler, createApiSuccessResponse, requireAdmin, requireUserId } from '@/shared/utils.js';
+import { AppError, assertOwnsSession, asyncHandler, createApiSuccessResponse, requireAdmin, requireUserId } from '@/shared/utils.js';
 
 const router = express.Router();
 
@@ -564,6 +565,8 @@ router.delete(
   requireAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
+    const userId = requireUserId(req);
+    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
     const force = parseOptionalBooleanQuery(req.query.force, 'force') ?? false;
     const deletedFromDisk = parseOptionalBooleanQuery(req.query.deletedFromDisk, 'deletedFromDisk') ?? force;
     const result = await sessionsService.deleteOrArchiveSessionById(sessionId, {
@@ -578,6 +581,8 @@ router.post(
   '/sessions/:sessionId/restore',
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
+    const userId = requireUserId(req);
+    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
     const result = sessionsService.restoreSessionById(sessionId);
     res.json(createApiSuccessResponse(result));
   }),
@@ -587,6 +592,8 @@ router.put(
   '/sessions/:sessionId',
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
+    const userId = requireUserId(req);
+    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
     const summary = parseSessionRenameSummary(req.body);
     const result = sessionsService.renameSessionById(sessionId, summary);
     res.json(createApiSuccessResponse(result));
@@ -597,6 +604,8 @@ router.get(
   '/sessions/:sessionId/messages',
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
+    const userId = requireUserId(req);
+    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
     const limitRaw = readOptionalQueryString(req.query.limit);
     const offsetRaw = readOptionalQueryString(req.query.offset);
 

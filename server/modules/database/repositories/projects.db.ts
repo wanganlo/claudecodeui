@@ -130,13 +130,13 @@ export const projectsDb = {
         `).run(randomUUID(), normalizedProjectPath, userId, customProjectName);
     },
 
-    updateCustomProjectNameById(projectId: string, customProjectName: string | null): void {
+    updateCustomProjectNameById(projectId: string, customProjectName: string | null, userId: number): void {
         const db = getConnection();
         db.prepare(`
             UPDATE projects
             SET custom_project_name = ?
             WHERE project_id = ? AND user_id = ?
-        `).run(customProjectName, projectId);
+        `).run(customProjectName, projectId, userId);
     },
 
     updateProjectIsStarred(projectPath: string, isStarred: boolean, userId: number = 1): void {

@@ -12,7 +12,7 @@ import cors from 'cors';
 import mime from 'mime-types';
 import Database from 'better-sqlite3';
 
-import { AppError, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
+import { AppError, assertOwnsSession, WORKSPACES_ROOT, getOpenCodeDatabasePath, validateWorkspacePath } from '@/shared/utils.js';
 import { closeSessionsWatcher, initializeSessionsWatcher } from '@/modules/providers/index.js';
 import { createWebSocketServer } from '@/modules/websocket/index.js';
 
@@ -1178,6 +1178,12 @@ app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticate
         // session row so the frontend does not choose provider-specific paths.
         const sessionRow = sessionsDb.getSessionById(safeSessionId);
         if (!sessionRow) {
+            return res.status(404).json({ error: 'Session not found', sessionId: safeSessionId });
+        }
+
+        try {
+            assertOwnsSession(sessionRow, Number(req.user?.id));
+        } catch {
             return res.status(404).json({ error: 'Session not found', sessionId: safeSessionId });
         }
 

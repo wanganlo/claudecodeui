@@ -120,6 +120,38 @@ export function requireUserId(req: import('express').Request): number {
 }
 
 /**
+ * Asserts that a session row belongs to the given user. Throws a 404
+ * SESSION_NOT_FOUND AppError (NOT 403) when the row is missing or owned by
+ * another user, so callers cannot learn whether a session id exists.
+ *
+ * Use this at every external entry point (HTTP route / WS handler) that
+ * touches sessionsDb.getSessionById(...), because getSessionById is
+ * intentionally global (no user_id filter) for the disk watcher.
+ */
+export function assertOwnsSession(
+  session: { user_id?: number | null } | null | undefined,
+  userId: number,
+): asserts session is { user_id: number } {
+  if (!session || session.user_id !== userId) {
+    throw new AppError('Session not found', {
+      code: 'SESSION_NOT_FOUND',
+      statusCode: 404,
+    });
+  }
+}
+
+/**
+ * Normalizes a websocket-sourced userId (string | number | null) into a
+ * number, or null when missing/invalid. WS connections may carry the id as a
+ * JWT subject string, while the DB stores it as an integer.
+ */
+export function resolveWsUserId(raw: unknown): number | null {
+  if (raw === null || raw === undefined) return null;
+  const n = typeof raw === 'number' ? raw : Number(raw);
+  return Number.isInteger(n) ? n : null;
+}
+
+/**
  * Express middleware that rejects non-admin users with 403.
  *
  * Must run AFTER `authenticateToken` so `req.user` is populated. The admin flag

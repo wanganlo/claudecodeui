@@ -50,11 +50,11 @@ type GetProjectTaskMasterByIdResult = {
 };
 
 type GetProjectTaskMasterDependencies = {
-  resolveProjectPathById: (projectId: string) => string | null;
+  resolveProjectPathById: (projectId: string, userId: number) => string | null;
   detectTaskMasterFolder: (projectPath: string) => Promise<TaskMasterDetectionResult>;
 };
 
-type GetProjectTaskMasterResolver = (projectId: string) => Promise<GetProjectTaskMasterByIdResult | null>;
+type GetProjectTaskMasterResolver = (projectId: string, userId: number) => Promise<GetProjectTaskMasterByIdResult | null>;
 
 function extractTasksFromJson(tasksData: unknown): TaskMasterTask[] {
   if (!tasksData || typeof tasksData !== 'object') {
@@ -203,15 +203,16 @@ function normalizeTaskMasterInfo(taskMasterResult: TaskMasterDetectionResult | n
 }
 
 const defaultDependencies: GetProjectTaskMasterDependencies = {
-  resolveProjectPathById: (projectId: string): string | null => projectsDb.getProjectPathById(projectId, 1),
+  resolveProjectPathById: (projectId: string, userId: number): string | null => projectsDb.getProjectPathById(projectId, userId),
   detectTaskMasterFolder,
 };
 
 export async function getProjectTaskMasterById(
   projectId: string,
+  userId: number,
   dependencies: GetProjectTaskMasterDependencies = defaultDependencies,
 ): Promise<GetProjectTaskMasterByIdResult | null> {
-  const projectPath = dependencies.resolveProjectPathById(projectId);
+  const projectPath = dependencies.resolveProjectPathById(projectId, userId);
   if (!projectPath) {
     return null;
   }
@@ -226,6 +227,7 @@ export async function getProjectTaskMasterById(
 
 export async function getProjectTaskMaster(
   projectId: string,
+  userId: number,
   resolveById: GetProjectTaskMasterResolver = getProjectTaskMasterById,
 ): Promise<GetProjectTaskMasterByIdResult> {
   const normalizedProjectId = projectId.trim();
@@ -236,7 +238,7 @@ export async function getProjectTaskMaster(
     });
   }
 
-  const taskMasterDetails = await resolveById(normalizedProjectId);
+  const taskMasterDetails = await resolveById(normalizedProjectId, userId);
   if (!taskMasterDetails) {
     throw new AppError('Project not found', {
       code: 'PROJECT_NOT_FOUND',
