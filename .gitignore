@@ -151,3 +151,6 @@ electron/*.tar.gz
 # Task files
 # tasks.json
 # tasks/ 
+#
+# TypeScript build info
+tsconfig.tsbuildinfo
