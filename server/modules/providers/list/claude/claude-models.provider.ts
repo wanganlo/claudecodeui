@@ -1,4 +1,8 @@
+import os from 'node:os';
 import { readFile } from 'node:fs/promises';
+
+import { query } from '@anthropic-ai/claude-agent-sdk';
+import type { ModelInfo, Options } from '@anthropic-ai/claude-agent-sdk';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import type { IProviderModels } from '@/shared/interfaces.js';
@@ -120,6 +124,73 @@ export const findClaudeModelOption = (model: string | undefined | null): Provide
 
   return CLAUDE_FALLBACK_MODELS.OPTIONS.find((option) => option.value === normalizedModel) ?? null;
 };
+
+const buildClaudeQueryOptions = (): Options => ({
+  // Run the discovery in a throw-away temp directory so the SDK does not
+  // create a new project session under the current workspace.
+  cwd: os.tmpdir(),
+  persistSession: false,
+  tools: [],
+  allowedTools: [],
+  maxTurns: 1,
+});
+
+const DEFAULT_EFFORT_LEVELS: { value: string }[] = [
+  { value: 'low' },
+  { value: 'medium' },
+  { value: 'high' },
+  { value: 'xhigh' },
+  { value: 'max' },
+];
+
+const CLAUDE_FALLBACK_BY_VALUE = new Map<string, ProviderModelOption>(
+  CLAUDE_FALLBACK_MODELS.OPTIONS.map((option) => [option.value, option]),
+);
+
+const buildClaudeModelOption = (model: ModelInfo): ProviderModelOption => {
+  const fallback = CLAUDE_FALLBACK_BY_VALUE.get(model.value);
+  const effortLevels = model.supportedEffortLevels
+    ? model.supportedEffortLevels.map((value) => ({ value }))
+    : (fallback?.effort?.values ?? DEFAULT_EFFORT_LEVELS);
+
+  return {
+    value: model.value,
+    label: fallback?.label ?? model.displayName,
+    description: fallback?.description ?? model.description,
+    effort: model.supportsEffort
+      ? {
+          default: fallback?.effort?.default ?? 'high',
+          values: effortLevels,
+        }
+      : fallback?.effort,
+  };
+};
+
+const buildClaudeModelsDefinition = (models: ModelInfo[]): ProviderModelsDefinition => {
+  const seenValues = new Set<string>();
+  const options: ProviderModelOption[] = [];
+
+  // Always offer the Claude Code default alias if the SDK did not return it.
+  const defaultOption = CLAUDE_FALLBACK_BY_VALUE.get('default');
+  if (defaultOption) {
+    options.push(defaultOption);
+    seenValues.add('default');
+  }
+
+  for (const model of models) {
+    if (!model.value || seenValues.has(model.value)) {
+      continue;
+    }
+    seenValues.add(model.value);
+    options.push(buildClaudeModelOption(model));
+  }
+
+  return {
+    OPTIONS: options,
+    DEFAULT: 'default',
+  };
+};
+
 type ClaudeInitEvent = {
   sessionId?: string;
   session_id?: string;
@@ -231,18 +302,17 @@ const readClaudeSessionModelFromJsonl = async (
 
 export class ClaudeProviderModels implements IProviderModels {
   async getSupportedModels(): Promise<ProviderModelsDefinition> {
-    // claude creates a new jsonl file as a separate session for this request.
-    // As a result, it lists the workspace where this is invoked when it shouldn't.
-    //
-    // Disabled for now:
-    // const queryInstance = query({
-    //   prompt: 'Get supported models',
-    //   options: buildClaudeQueryOptions(),
-    // });
-    // const supportedModels = await queryInstance.supportedModels();
-    // queryInstance.close();
-    // return buildClaudeModelsDefinition(supportedModels);
-    return CLAUDE_FALLBACK_MODELS;
+    const queryInstance = query({ prompt: 'Get supported models', options: buildClaudeQueryOptions() });
+
+    try {
+      const supportedModels = await queryInstance.supportedModels();
+      return buildClaudeModelsDefinition(supportedModels);
+    } catch (error) {
+      console.error('Failed to discover Claude models dynamically, using fallback:', error);
+      return CLAUDE_FALLBACK_MODELS;
+    } finally {
+      queryInstance.close();
+    }
   }
 
   async getCurrentActiveModel(sessionId?: string): Promise<ProviderCurrentActiveModel> {
