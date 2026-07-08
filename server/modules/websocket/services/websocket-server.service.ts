@@ -55,6 +55,14 @@ export function createWebSocketServer(
     const pathname = new URL(url, 'http://localhost').pathname;
 
     if (pathname === '/shell') {
+      // Interactive shell = full host RCE. Restrict to admin users only.
+      // Non-admin tokens are rejected here (after auth, before PTY spawn) so
+      // chat/notifications/plugin WS paths on this same server stay unaffected.
+      if (incomingRequest.user?.is_admin !== 1) {
+        console.log('[WARN] Non-admin WebSocket /shell rejected for user:', incomingRequest.user?.username);
+        ws.close(1008, 'Admin privileges required');
+        return;
+      }
       handleShellConnection(ws, dependencies.shell);
       return;
     }

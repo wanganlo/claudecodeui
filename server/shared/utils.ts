@@ -102,6 +102,42 @@ export class AppError extends Error {
   }
 }
 
+export function requireUserId(req: import('express').Request): number {
+  const authenticatedUser = (req as import('express').Request & { user?: { id?: number | string } }).user;
+  const rawUserId = authenticatedUser?.id;
+  if (rawUserId === undefined || rawUserId === null) {
+    throw new AppError('Authenticated user is required', {
+      code: 'AUTHENTICATION_REQUIRED', statusCode: 401,
+    });
+  }
+  const userId = typeof rawUserId === 'string' ? Number.parseInt(rawUserId, 10) : rawUserId;
+  if (!Number.isInteger(userId)) {
+    throw new AppError('Authenticated user id is invalid', {
+      code: 'AUTHENTICATION_REQUIRED', statusCode: 401,
+    });
+  }
+  return userId;
+}
+
+/**
+ * Express middleware that rejects non-admin users with 403.
+ *
+ * Must run AFTER `authenticateToken` so `req.user` is populated. The admin flag
+ * is read fresh from the DB on every request (via `getUserById` in the auth
+ * middleware), so privilege changes take effect immediately without re-issuing
+ * the JWT. Gate destructive/power-user operations (delete, shell, self-update,
+ * user creation, plugin install/uninstall, git push/clean, agent automation)
+ * behind this middleware.
+ */
+export const requireAdmin: RequestHandler = (req, res, next) => {
+  const authenticatedUser = (req as Request & { user?: { is_admin?: number } }).user;
+  if (!authenticatedUser || authenticatedUser.is_admin !== 1) {
+    return res.status(403).json({ error: 'Admin privileges required' });
+  }
+  next();
+};
+
+
 // ---------------------------
 //----------------- WORKSPACE PATH VALIDATION UTILITIES ------------
 /**

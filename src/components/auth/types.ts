@@ -3,6 +3,8 @@ import type { ReactNode } from 'react';
 export type AuthUser = {
   id?: number | string;
   username: string;
+  /** 1 = admin (full power-user access), 0/undefined = regular user. */
+  is_admin?: number;
   [key: string]: unknown;
 };
 

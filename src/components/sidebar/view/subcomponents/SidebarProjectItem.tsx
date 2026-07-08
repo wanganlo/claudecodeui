@@ -3,6 +3,7 @@ import type { TFunction } from 'i18next';
 
 import { Button } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
+import { useIsAdmin } from '../../../auth/context/AuthContext';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { MCPServerStatus, SessionWithProvider } from '../../types/types';
@@ -94,6 +95,8 @@ export default function SidebarProjectItem({
   onSaveEditingSession,
   t,
 }: SidebarProjectItemProps) {
+  // Only admins can delete projects. Backend (requireAdmin) enforces the same gate.
+  const isAdmin = useIsAdmin();
   // Project identity is tracked by the DB-assigned `projectId` everywhere
   // after the projectName → projectId migration.
   const isSelected = selectedProject?.projectId === project.projectId;
@@ -225,6 +228,7 @@ export default function SidebarProjectItem({
                   </>
                 ) : (
                   <>
+                    {isAdmin && (
                     <button
                       className="flex h-8 w-8 items-center justify-center rounded-lg border border-red-200 bg-red-500/10 active:scale-90 dark:border-red-800 dark:bg-red-900/30"
                       onClick={(event) => {
@@ -234,6 +238,7 @@ export default function SidebarProjectItem({
                     >
                       <Trash2 className="h-4 w-4 text-red-600 dark:text-red-400" />
                     </button>
+                    )}
 
                     <button
                       className="flex h-8 w-8 items-center justify-center rounded-lg border border-primary/20 bg-primary/10 active:scale-90 dark:border-primary/30 dark:bg-primary/20"
@@ -369,6 +374,7 @@ export default function SidebarProjectItem({
                 >
                   <Edit3 className="h-3 w-3" />
                 </div>
+                {isAdmin && (
                 <div
                   className="touch:opacity-100 flex h-6 w-6 cursor-pointer items-center justify-center rounded opacity-0 transition-all duration-200 hover:bg-red-50 group-hover:opacity-100 dark:hover:bg-red-900/20"
                   onClick={(event) => {
@@ -379,6 +385,7 @@ export default function SidebarProjectItem({
                 >
                   <Trash2 className="h-3 w-3 text-red-600 dark:text-red-400" />
                 </div>
+                )}
                 {isExpanded ? (
                   <ChevronDown className="h-4 w-4 text-muted-foreground transition-colors group-hover:text-foreground" />
                 ) : (

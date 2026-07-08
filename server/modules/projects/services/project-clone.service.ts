@@ -12,7 +12,7 @@ type CloneProjectInput = {
   githubUrl: string;
   githubTokenId?: number | null;
   newGithubToken?: string | null;
-  userId: number | string;
+  userId?: number | string;
 };
 
 type CloneCompletePayload = {
@@ -40,7 +40,7 @@ type CloneProjectDependencies = {
   removePath: (targetPath: string) => Promise<void>;
   getGithubTokenById: (
     tokenId: number,
-    userId: number,
+    userId?: number,
   ) => Promise<{ github_token: string } | null>;
   spawnGitClone: (cloneUrl: string, clonePath: string) => GitCloneProcess;
   registerProject: (projectPath: string, customName: string) => Promise<{ project: Record<string, unknown> }>;
@@ -117,7 +117,7 @@ const defaultDependencies: CloneProjectDependencies = {
   },
   getGithubTokenById: async (
     tokenId: number,
-    userId: number,
+    userId: number = 1,
   ): Promise<{ github_token: string } | null> => {
     const tokenRow = githubTokensDb.getGithubTokenById(userId, tokenId) as
       | { github_token: string }
@@ -139,6 +139,7 @@ const defaultDependencies: CloneProjectDependencies = {
     createProject({
       projectPath,
       customName,
+      userId: 1,
     }) as Promise<{ project: Record<string, unknown> }>,
   logError: (message: string, error: unknown): void => {
     console.error(message, error);

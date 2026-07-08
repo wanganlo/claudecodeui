@@ -18,9 +18,10 @@ type UserRow = {
   git_name: string | null;
   git_email: string | null;
   has_completed_onboarding: number;
+  is_admin: number;
 };
 
-type UserPublicRow = Pick<UserRow, 'id' | 'username' | 'created_at' | 'last_login'>;
+type UserPublicRow = Pick<UserRow, 'id' | 'username' | 'created_at' | 'last_login' | 'is_admin'>;
 
 type UserGitConfig = {
   git_name: string | null;
@@ -46,12 +47,21 @@ export const userDb = {
     return row.count > 0;
   },
 
+  /** Returns true if at least one admin user exists in the database. */
+  hasAdmin(): boolean {
+    const db = getConnection();
+    const row = db.prepare('SELECT 1 FROM users WHERE is_admin = 1 AND is_active = 1 LIMIT 1').get() as
+    | { 1: number }
+    | undefined;
+    return Boolean(row);
+  },
+
   /** Inserts a new user and returns the created ID + username. */
-  createUser(username: string, passwordHash: string): CreateUserResult {
+  createUser(username: string, passwordHash: string, isAdmin = false): CreateUserResult {
     const db = getConnection();
     const result = db
-      .prepare('INSERT INTO users (username, password_hash) VALUES (?, ?)')
-      .run(username, passwordHash);
+      .prepare('INSERT INTO users (username, password_hash, is_admin) VALUES (?, ?, ?)')
+      .run(username, passwordHash, isAdmin ? 1 : 0);
     return { id: result.lastInsertRowid, username };
   },
 
@@ -84,7 +94,7 @@ export const userDb = {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE id = ? AND is_active = 1'
+        'SELECT id, username, created_at, last_login, is_admin FROM users WHERE id = ? AND is_active = 1'
       )
       .get(userId) as UserPublicRow | undefined;
   },
@@ -94,7 +104,7 @@ export const userDb = {
     const db = getConnection();
     return db
       .prepare(
-        'SELECT id, username, created_at, last_login FROM users WHERE is_active = 1 LIMIT 1'
+        'SELECT id, username, created_at, last_login, is_admin FROM users WHERE is_active = 1 LIMIT 1'
       )
       .get() as UserPublicRow | undefined;
   },

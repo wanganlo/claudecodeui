@@ -12,10 +12,11 @@ type SessionRow = {
   isArchived: number;
   created_at: string;
   updated_at: string;
+  user_id: number;
 };
 
 const SESSION_ROW_COLUMNS =
-  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at';
+  'session_id, provider, provider_session_id, project_path, jsonl_path, custom_name, isArchived, created_at, updated_at, user_id';
 
 const SQLITE_UTC_TIMESTAMP_REGEX = /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/;
 
@@ -83,7 +84,7 @@ export const sessionsDb = {
 
     // First, ensure the project path is recorded in the projects table,
     // since it's a foreign key in the sessions table.
-    projectsDb.createProjectPath(normalizedProjectPath);
+    projectsDb.createProjectPath(normalizedProjectPath, null, 1);
 
     const existing = db
       .prepare(
@@ -119,8 +120,8 @@ export const sessionsDb = {
     // keyed by the provider-native id for both columns. The ON CONFLICT path
     // covers legacy rows that predate the provider_session_id mapping.
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, user_id, isArchived, created_at, updated_at)
+       VALUES (?, ?, ?, ?, ?, ?, 1, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
        ON CONFLICT(session_id) DO UPDATE SET
          provider = excluded.provider,
          provider_session_id = excluded.provider_session_id,
@@ -151,16 +152,16 @@ export const sessionsDb = {
    * stays NULL until the provider runtime announces its own id and
    * `assignProviderSessionId` records the mapping.
    */
-  createAppSession(sessionId: string, provider: string, projectPath: string): string {
+  createAppSession(sessionId: string, provider: string, projectPath: string, userId: number = 1): string {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPathForProvider(provider, projectPath);
 
-    projectsDb.createProjectPath(normalizedProjectPath);
+    projectsDb.createProjectPath(normalizedProjectPath, null, userId);
 
     db.prepare(
-      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, isArchived, created_at, updated_at)
-       VALUES (?, ?, NULL, NULL, ?, NULL, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
-    ).run(sessionId, provider, normalizedProjectPath);
+      `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, user_id, isArchived, created_at, updated_at)
+       VALUES (?, ?, NULL, NULL, ?, NULL, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`
+    ).run(sessionId, provider, normalizedProjectPath, userId);
 
     return sessionId;
   },
@@ -294,15 +295,15 @@ export const sessionsDb = {
     return normalizeSessionRow(row) ?? null;
   },
 
-  getAllSessions(): SessionRow[] {
+  getAllSessions(userId: number = 1): SessionRow[] {
     const db = getConnection();
     const rows = db
       .prepare(
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE isArchived = 0`
+         WHERE isArchived = 0 AND user_id = ?`
       )
-      .all() as SessionRow[];
+      .all(userId) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
@@ -311,31 +312,31 @@ export const sessionsDb = {
    * Archived rows are intentionally queried separately so the caller can render
    * them in a dedicated view without reintroducing them into active session lists.
    */
-  getArchivedSessions(): SessionRow[] {
+  getArchivedSessions(userId: number = 1): SessionRow[] {
     const db = getConnection();
     const rows = db
       .prepare(
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE isArchived = 1
+         WHERE isArchived = 1 AND user_id = ?
          ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC`
       )
-      .all() as SessionRow[];
+      .all(userId) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
 
-  getSessionsByProjectPath(projectPath: string): SessionRow[] {
+  getSessionsByProjectPath(projectPath: string, userId: number = 1): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
     const rows = db
       .prepare(
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE project_path = ?
+         WHERE project_path = ? AND user_id = ?
            AND isArchived = 0`
       )
-      .all(normalizedProjectPath) as SessionRow[];
+      .all(normalizedProjectPath, userId) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
@@ -344,56 +345,56 @@ export const sessionsDb = {
    * Permanent project deletion must see every session row for the path,
    * including archived ones, so their transcript files can be cleaned up.
    */
-  getSessionsByProjectPathIncludingArchived(projectPath: string): SessionRow[] {
+  getSessionsByProjectPathIncludingArchived(projectPath: string, userId: number = 1): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
     const rows = db
       .prepare(
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE project_path = ?`
+         WHERE project_path = ? AND user_id = ?`
       )
-      .all(normalizedProjectPath) as SessionRow[];
+      .all(normalizedProjectPath, userId) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
 
-  getSessionsByProjectPathPage(projectPath: string, limit: number, offset: number): SessionRow[] {
+  getSessionsByProjectPathPage(projectPath: string, limit: number, offset: number, userId: number = 1): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
     const rows = db
       .prepare(
         `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE project_path = ?
+         WHERE project_path = ? AND user_id = ?
            AND isArchived = 0
          ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC
          LIMIT ? OFFSET ?`
       )
-      .all(normalizedProjectPath, limit, offset) as SessionRow[];
+      .all(normalizedProjectPath, userId, limit, offset) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
 
-  countSessionsByProjectPath(projectPath: string): number {
+  countSessionsByProjectPath(projectPath: string, userId: number = 1): number {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
     const row = db
       .prepare(
         `SELECT COUNT(*) AS count
          FROM sessions
-         WHERE project_path = ?
+         WHERE project_path = ? AND user_id = ?
            AND isArchived = 0`
       )
-      .get(normalizedProjectPath) as { count: number } | undefined;
+      .get(normalizedProjectPath, userId) as { count: number } | undefined;
 
     return Number(row?.count ?? 0);
   },
 
-  deleteSessionsByProjectPath(projectPath: string): void {
+  deleteSessionsByProjectPath(projectPath: string, userId: number = 1): void {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    db.prepare(`DELETE FROM sessions WHERE project_path = ?`).run(normalizedProjectPath);
+    db.prepare(`DELETE FROM sessions WHERE project_path = ? AND user_id = ?`).run(normalizedProjectPath, userId);
   },
 
   getSessionName(sessionId: string, provider: string): string | null {
@@ -426,4 +427,12 @@ export const sessionsDb = {
     const db = getConnection();
     return db.prepare('DELETE FROM sessions WHERE session_id = ?').run(sessionId).changes > 0;
   },
+
+    getAllSessionsForAllUsers(): SessionRow[] {
+        const db = getConnection();
+        return db.prepare(`
+            SELECT * FROM sessions WHERE isArchived = 0
+        `).all() as SessionRow[];
+    },
+
 };

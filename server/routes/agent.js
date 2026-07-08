@@ -13,7 +13,7 @@ import { spawnOpenCode } from '../opencode-cli.js';
 import { Octokit } from '@octokit/rest';
 import { providerModelsService } from '../modules/providers/services/provider-models.service.js';
 import { IS_PLATFORM } from '../constants/config.js';
-import { normalizeProjectPath } from '../shared/utils.js';
+import { normalizeProjectPath, requireAdmin } from '../shared/utils.js';
 
 const router = express.Router();
 
@@ -847,7 +847,7 @@ class ResponseCollector {
  *     "cleanup": false
  *   }
  */
-router.post('/', validateExternalApiKey, async (req, res) => {
+router.post('/', validateExternalApiKey, requireAdmin, async (req, res) => {
   const { githubUrl, projectPath, message, provider = 'claude', model, githubToken, branchName, sessionId } = req.body;
   const effort = typeof req.body.effort === 'string' && req.body.effort.trim()
     ? req.body.effort.trim()
@@ -914,7 +914,7 @@ router.post('/', validateExternalApiKey, async (req, res) => {
     finalProjectPath = normalizeProjectPath(finalProjectPath);
 
     // Register project path in DB (or reuse existing active registration)
-    const registrationResult = projectsDb.createProjectPath(finalProjectPath, null);
+    const registrationResult = projectsDb.createProjectPath(finalProjectPath, null, req.user.id);
     if (registrationResult.outcome === 'active_conflict') {
       console.log('Project registration already exists for:', finalProjectPath);
     } else {

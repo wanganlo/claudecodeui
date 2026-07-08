@@ -2,6 +2,7 @@ import { Fragment, useCallback, useEffect, useMemo, useRef, useState, type Mouse
 import { useTranslation } from 'react-i18next';
 import { Copy, Download, FileText, FolderPlus, Pencil, RefreshCw, Trash2, type LucideIcon } from 'lucide-react';
 import { cn } from '../../../lib/utils';
+import { useIsAdmin } from '../../auth/context/AuthContext';
 
 type FileContextItem = {
   name: string;
@@ -89,6 +90,10 @@ export default function FileContextMenu({
     closeContextMenu();
     action?.();
   }, [closeContextMenu]);
+
+  // Only admins can delete files/directories. Backend (requireAdmin) enforces
+  // the same gate; here we just hide the menu item.
+  const isAdmin = useIsAdmin();
 
   const menuActions = useMemo<ContextMenuAction[]>(() => {
     if (item?.type === 'file') {
@@ -279,7 +284,7 @@ export default function FileContextMenu({
               <span className="ml-2 text-sm text-muted-foreground">{t('fileTree.context.loading', 'Loading...')}</span>
             </div>
           ) : (
-            menuActions.map((action) => (
+            (isAdmin ? menuActions : menuActions.filter((action) => action.key !== 'delete')).map((action) => (
               <Fragment key={action.key}>
                 {action.showDividerBefore && <div className="mx-2 my-1 h-px bg-border" />}
                 <button

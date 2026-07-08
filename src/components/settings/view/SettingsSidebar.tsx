@@ -1,6 +1,7 @@
-import { Bell, Bot, GitBranch, Info, Key, ListChecks, Mic, MonitorPlay, Palette, Puzzle } from 'lucide-react';
+import { Bell, Bot, GitBranch, Info, Key, ListChecks, LogOut, Mic, MonitorPlay, Palette, Puzzle, Users } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
+import { useAuth } from '../../../components/auth/context/AuthContext';
 import { cn } from '../../../lib/utils';
 import { PillBar, Pill } from '../../../shared/view/ui';
 import type { SettingsMainTab } from '../types/types';
@@ -27,17 +28,25 @@ const NAV_ITEMS: NavItem[] = [
   { id: 'plugins', labelKey: 'mainTabs.plugins', icon: Puzzle },
   { id: 'notifications', labelKey: 'mainTabs.notifications', icon: Bell },
   { id: 'about', labelKey: 'mainTabs.about', icon: Info },
+  { id: 'users', labelKey: 'mainTabs.users', icon: Users },
 ];
 
 export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebarProps) {
   const { t } = useTranslation('settings');
+  const { logout, user } = useAuth();
+  // User management and plugin install/uninstall are admin-only (backend
+  // enforces the same gate via requireAdmin).
+  const isAdmin = user?.is_admin === 1;
+  const visibleItems = isAdmin
+    ? NAV_ITEMS
+    : NAV_ITEMS.filter((item) => item.id !== 'users' && item.id !== 'plugins');
 
   return (
     <>
       {/* Desktop sidebar */}
       <aside className="hidden w-56 flex-shrink-0 border-r border-border bg-muted/30 md:flex md:flex-col">
-        <nav className="flex flex-col gap-1 p-3">
-          {NAV_ITEMS.map((item) => {
+        <nav className="flex flex-1 flex-col gap-1 p-3">
+          {visibleItems.map((item) => {
             const Icon = item.icon;
             const isActive = activeTab === item.id;
 
@@ -58,12 +67,26 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
             );
           })}
         </nav>
+
+        {/* User + logout — pinned to the bottom of the sidebar */}
+        <div className="border-t border-border p-3">
+          <div className="mb-2 truncate px-3 text-xs text-muted-foreground">
+            {user?.username ?? ''}
+          </div>
+          <button
+            onClick={logout}
+            className="flex w-full items-center gap-3 rounded-lg px-3 py-2.5 text-left text-sm font-medium text-muted-foreground transition-colors duration-150 hover:bg-accent/50 hover:text-foreground active:bg-accent/50"
+          >
+            <LogOut className="h-4 w-4 flex-shrink-0" />
+            {t('logout.button', { ns: 'auth' })}
+          </button>
+        </div>
       </aside>
 
       {/* Mobile horizontal nav — pill bar */}
       <div className="flex-shrink-0 border-b border-border px-3 py-2 md:hidden">
         <PillBar className="scrollbar-hide w-full overflow-x-auto">
-          {NAV_ITEMS.map((item) => {
+          {visibleItems.map((item) => {
             const Icon = item.icon;
 
             return (
@@ -78,6 +101,10 @@ export default function SettingsSidebar({ activeTab, onChange }: SettingsSidebar
               </Pill>
             );
           })}
+          <Pill isActive={false} onClick={logout} className="flex-shrink-0">
+            <LogOut className="h-3.5 w-3.5" />
+            {t('logout.button', { ns: 'auth' })}
+          </Pill>
         </PillBar>
       </div>
     </>

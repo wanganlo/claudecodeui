@@ -203,7 +203,7 @@ function normalizeTaskMasterInfo(taskMasterResult: TaskMasterDetectionResult | n
 }
 
 const defaultDependencies: GetProjectTaskMasterDependencies = {
-  resolveProjectPathById: (projectId: string): string | null => projectsDb.getProjectPathById(projectId),
+  resolveProjectPathById: (projectId: string): string | null => projectsDb.getProjectPathById(projectId, 1),
   detectTaskMasterFolder,
 };
 

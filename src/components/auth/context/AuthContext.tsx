@@ -34,6 +34,19 @@ export function useAuth(): AuthContextValue {
   return context;
 }
 
+/**
+ * Returns true when the current user is an admin.
+ *
+ * Use this to hide destructive / power-user UI (delete buttons, Shell/Files/
+ * Source Control tabs, user management) from regular users. The backend
+ * enforces the same gate via `requireAdmin`, so this is UX only — never a
+ * security boundary on its own.
+ */
+export function useIsAdmin(): boolean {
+  const { user } = useAuth();
+  return user?.is_admin === 1;
+}
+
 export function AuthProvider({ children }: AuthProviderProps) {
   const [user, setUser] = useState<AuthUser | null>(null);
   const [token, setToken] = useState<string | null>(() => readStoredToken());
@@ -117,7 +130,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   useEffect(() => {
     if (IS_PLATFORM) {
-      setUser({ username: 'platform-user' });
+      setUser({ username: 'platform-user', is_admin: 1 });
       setNeedsSetup(false);
       void checkOnboardingStatus().finally(() => {
         setIsLoading(false);

@@ -112,7 +112,8 @@
     "browser": "Browser",
     "notifications": "Notifications",
     "plugins": "Plugins",
-    "about": "About"
+    "about": "About",
+    "users": "Users"
   },
   "notifications": {
     "title": "Notifications",

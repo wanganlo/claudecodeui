@@ -12,6 +12,7 @@ import { usePaletteOpsRegister } from '../../../contexts/PaletteOpsContext';
 import { useTasksSettings } from '../../../contexts/TasksSettingsContext';
 import { useUiPreferences } from '../../../hooks/useUiPreferences';
 import { useFileOpenResolver } from '../../../hooks/useFileOpenResolver';
+import { useIsAdmin } from '../../auth/context/AuthContext';
 import { authenticatedFetch } from '../../../utils/api';
 import { useEditorSidebar } from '../../code-editor/hooks/useEditorSidebar';
 import EditorSidebar from '../../code-editor/view/EditorSidebar';
@@ -62,6 +63,9 @@ function MainContent({
 
   const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
   const shouldShowBrowserTab = browserUseEnabled;
+  // Shell / Files / Source Control tabs expose host filesystem + interactive
+  // shell + git — restrict to admins. Backend enforces the same gate.
+  const shouldShowPowerUserTabs = useIsAdmin();
 
   const {
     editingFile,
@@ -121,10 +125,23 @@ function MainContent({
     }
   }, [shouldShowBrowserTab, activeTab, setActiveTab]);
 
+  // Bounce non-admins off the power-user tabs (defense-in-depth alongside the
+  // tab switcher hiding them). Covers deep-links and programmatic setActiveTab.
+  useEffect(() => {
+    if (!shouldShowPowerUserTabs && (activeTab === 'shell' || activeTab === 'files' || activeTab === 'git')) {
+      setActiveTab('chat');
+    }
+  }, [shouldShowPowerUserTabs, activeTab, setActiveTab]);
+
   usePaletteOpsRegister({
     openFile: (filePath: string) => {
-      setActiveTab('files');
-      handleFileOpen(filePath);
+      // Non-admins have no Files tab — open in the editor side panel instead.
+      if (shouldShowPowerUserTabs) {
+        setActiveTab('files');
+        handleFileOpen(filePath);
+      } else {
+        resolvedFileOpen(filePath);
+      }
     },
     // Opens the editor side panel in place, keeping the current tab (e.g. chat).
     openFileInEditor: (filePath: string) => {
@@ -149,6 +166,7 @@ function MainContent({
         selectedSession={selectedSession}
         shouldShowTasksTab={shouldShowTasksTab}
         shouldShowBrowserTab={shouldShowBrowserTab}
+        shouldShowPowerUserTabs={shouldShowPowerUserTabs}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
       />
@@ -180,13 +198,13 @@ function MainContent({
             </ErrorBoundary>
           </div>
 
-          {activeTab === 'files' && (
+          {shouldShowPowerUserTabs && activeTab === 'files' && (
             <div className="h-full overflow-hidden">
               <FileTree selectedProject={selectedProject} onFileOpen={handleFileOpen} />
             </div>
           )}
 
-          {activeTab === 'shell' && (
+          {shouldShowPowerUserTabs && activeTab === 'shell' && (
             <div className="h-full w-full overflow-hidden">
               <StandaloneShell
                 project={selectedProject}
@@ -197,7 +215,7 @@ function MainContent({
             </div>
           )}
 
-          {activeTab === 'git' && (
+          {shouldShowPowerUserTabs && activeTab === 'git' && (
             <div className="h-full overflow-hidden">
               <GitPanel selectedProject={selectedProject} isMobile={isMobile} onFileOpen={handleFileOpen} />
             </div>

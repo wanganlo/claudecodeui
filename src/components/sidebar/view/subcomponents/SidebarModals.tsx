@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom';
 import { AlertTriangle, EyeOff, Trash2 } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { Button } from '../../../../shared/view/ui';
+import { useIsAdmin } from '../../../auth/context/AuthContext';
 import Settings from '../../../settings/view/Settings';
 import VersionUpgradeModal from '../../../version-upgrade/view';
 import type { Project } from '../../../../types/app';
@@ -70,6 +71,8 @@ export default function SidebarModals({
   installMode,
   t,
 }: SidebarModalsProps) {
+  // Self-update runs `git pull && npm install` on the host — admin only.
+  const isAdmin = useIsAdmin();
   // Settings expects project identity/path fields to be present for dropdown labels and local-scope MCP config.
   const settingsProjects = useMemo(
     () => projects.map(normalizeProjectForSettings),
@@ -209,7 +212,7 @@ export default function SidebarModals({
         )}
 
       <VersionUpgradeModal
-        isOpen={showVersionModal}
+        isOpen={showVersionModal && isAdmin}
         onClose={onCloseVersionModal}
         releaseInfo={releaseInfo}
         currentVersion={currentVersion}

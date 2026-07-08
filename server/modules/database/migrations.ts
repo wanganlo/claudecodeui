@@ -103,7 +103,7 @@ const migrateLegacyWorkspaceTableIntoProjects = (db: Database): void => {
       0
     FROM workspace_original_paths
     WHERE workspace_path IS NOT NULL AND trim(workspace_path) <> ''
-    ON CONFLICT(project_path) DO UPDATE SET
+    ON CONFLICT(project_path, user_id) DO UPDATE SET
       custom_project_name = COALESCE(projects.custom_project_name, excluded.custom_project_name),
       isStarred = COALESCE(projects.isStarred, excluded.isStarred)
   `);
@@ -417,11 +417,50 @@ const ensureProjectsForSessionPaths = (db: Database): void => {
       0
     FROM sessions
     WHERE project_path IS NOT NULL AND trim(project_path) <> ''
-    ON CONFLICT(project_path) DO NOTHING
+    ON CONFLICT(project_path, user_id) DO NOTHING
   `);
 };
 
+
+// Multi-user isolation: add user_id columns and rebuild UNIQUE constraints if needed
+const ensureUserIdColumns = (db: Database): void => {
+  const projectsCols = getTableInfo(db, 'projects').map(c => c.name);
+
+  // Check if user_id column is missing OR the UNIQUE constraint is still the old single-column one
+  const projectsTableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='projects'").get() as { sql?: string } | undefined;
+  const needsRebuild = !projectsCols.includes('user_id') || (projectsTableSql?.sql && !projectsTableSql.sql.includes('UNIQUE(project_path, user_id)'));
+
+  if (needsRebuild) {
+    if (!projectsCols.includes('user_id')) {
+      db.exec('ALTER TABLE projects ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1');
+    }
+    // Rebuild UNIQUE constraint from UNIQUE(project_path) to UNIQUE(project_path, user_id)
+    db.exec('CREATE TABLE IF NOT EXISTS _projects_new AS SELECT * FROM projects');
+    db.exec('DROP TABLE projects');
+    db.exec(PROJECTS_TABLE_SCHEMA_SQL);
+    db.exec('INSERT INTO projects (project_id, project_path, user_id, custom_project_name, isStarred, isArchived) SELECT project_id, project_path, user_id, custom_project_name, isStarred, isArchived FROM _projects_new');
+    db.exec('DROP TABLE _projects_new');
+  }
+
+  const sessionsCols = getTableInfo(db, 'sessions').map(c => c.name);
+  const sessionsTableSql = db.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='sessions'").get() as { sql?: string } | undefined;
+  const sessionsNeedsRebuild = !sessionsCols.includes('user_id') || (sessionsTableSql?.sql && sessionsTableSql.sql.includes('REFERENCES projects'));
+
+  if (sessionsNeedsRebuild) {
+    if (!sessionsCols.includes('user_id')) {
+      db.exec('ALTER TABLE sessions ADD COLUMN user_id INTEGER NOT NULL DEFAULT 1');
+    }
+    // Rebuild sessions table to remove FK to projects(project_path) and add FK to users(id)
+    db.exec('CREATE TABLE IF NOT EXISTS _sessions_new AS SELECT * FROM sessions');
+    db.exec('DROP TABLE sessions');
+    db.exec(SESSIONS_TABLE_SCHEMA_SQL);
+    db.exec('INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, user_id, isArchived, created_at, updated_at) SELECT session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, user_id, isArchived, created_at, updated_at FROM _sessions_new');
+    db.exec('DROP TABLE _sessions_new');
+  }
+};
+
 export const runMigrations = (db: Database) => {
+  ensureUserIdColumns(db);
   try {
     const usersTableInfo = db.prepare('PRAGMA table_info(users)').all() as { name: string }[];
     const userColumnNames = usersTableInfo.map((column) => column.name);
@@ -435,6 +474,21 @@ export const runMigrations = (db: Database) => {
       'has_completed_onboarding',
       'BOOLEAN DEFAULT 0'
     );
+    addColumnToTableIfNotExists(db, 'users', userColumnNames, 'is_admin', 'BOOLEAN DEFAULT 0');
+
+    // Backfill: ensure exactly one admin exists on upgraded installs.
+    // Promotes the lowest-id active user (the original setup user) to admin.
+    // Idempotent — no-op once any admin already exists.
+    const existingAdmin = db.prepare('SELECT id FROM users WHERE is_admin = 1 LIMIT 1').get() as { id: number } | undefined;
+    if (!existingAdmin) {
+      const firstUser = db
+        .prepare('SELECT id FROM users WHERE is_active = 1 ORDER BY id ASC LIMIT 1')
+        .get() as { id: number } | undefined;
+      if (firstUser) {
+        console.log('Running migration: promoting first user to admin');
+        db.prepare('UPDATE users SET is_admin = 1 WHERE id = ?').run(firstUser.id);
+      }
+    }
 
     db.exec(APP_CONFIG_TABLE_SCHEMA_SQL);
     db.exec(USER_NOTIFICATION_PREFERENCES_TABLE_SCHEMA_SQL);

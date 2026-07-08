@@ -32,5 +32,6 @@
     "types": ["node"]
   },
   "include": ["./**/*.js", "./**/*.ts", "../shared/**/*.js", "../shared/**/*.ts"],
-  "exclude": ["../dist", "../dist-server", "../node_modules", "../src"]
+  "exclude": [
+    "./**/tests/**","../dist", "../dist-server", "../node_modules", "../src"]
 }

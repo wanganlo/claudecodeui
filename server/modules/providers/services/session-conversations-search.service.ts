@@ -470,7 +470,7 @@ function extractGeminiText(content: unknown): string {
     .join(' ');
 }
 
-function normalizeSearchableSessions(rows: SessionRepositoryRow[]): SearchableSessionRow[] {
+function normalizeSearchableSessions(rows: SessionRepositoryRow[], userId: number = 1): SearchableSessionRow[] {
   const normalizedRows: SearchableSessionRow[] = [];
   const projectArchiveStateByPath = new Map<string, boolean>();
 
@@ -502,7 +502,7 @@ function normalizeSearchableSessions(rows: SessionRepositoryRow[]): SearchableSe
     const normalizedProjectPath = typeof row.project_path === 'string' ? row.project_path.trim() : '';
     if (normalizedProjectPath) {
       if (!projectArchiveStateByPath.has(normalizedProjectPath)) {
-        const projectRow = projectsDb.getProjectPath(normalizedProjectPath);
+        const projectRow = projectsDb.getProjectPath(normalizedProjectPath, userId);
         projectArchiveStateByPath.set(normalizedProjectPath, Boolean(projectRow?.isArchived));
       }
 
@@ -521,7 +521,7 @@ function normalizeSearchableSessions(rows: SessionRepositoryRow[]): SearchableSe
   return normalizedRows;
 }
 
-function buildProjectBuckets(searchableSessions: SearchableSessionRow[]): ProjectBucket[] {
+function buildProjectBuckets(searchableSessions: SearchableSessionRow[], userId: number = 1): ProjectBucket[] {
   const projectBuckets = new Map<string, ProjectBucket>();
   const projectMetadataCache = new Map<string, { projectId: string | null; projectDisplayName: string }>();
 
@@ -535,7 +535,7 @@ function buildProjectBuckets(searchableSessions: SearchableSessionRow[]): Projec
             projectDisplayName: 'Unknown Project',
           });
         } else {
-          const projectRow = projectsDb.getProjectPath(key);
+          const projectRow = projectsDb.getProjectPath(key, userId);
           const customProjectName = typeof projectRow?.custom_project_name === 'string'
             ? projectRow.custom_project_name.trim()
             : '';
@@ -1158,6 +1158,7 @@ export async function searchConversations(
   limit = 50,
   onProjectResult: ((update: SessionConversationSearchProgressUpdate) => void) | null = null,
   signal: AbortSignal | null = null,
+  userId: number = 1,
 ): Promise<{ results: ProjectConversationResult[]; totalMatches: number; query: string }> {
   const safeQuery = typeof query === 'string' ? query.trim() : '';
   const safeLimit = Math.max(1, Math.min(Number.isFinite(limit) ? limit : 50, 200));
@@ -1172,7 +1173,7 @@ export async function searchConversations(
     return { results: [], totalMatches: 0, query: safeQuery };
   }
 
-  const searchableSessions = normalizeSearchableSessions(sessionsDb.getAllSessions());
+  const searchableSessions = normalizeSearchableSessions(sessionsDb.getAllSessions(userId), userId);
   if (searchableSessions.length === 0) {
     return { results: [], totalMatches: 0, query: safeQuery };
   }
@@ -1220,7 +1221,7 @@ export async function searchConversations(
     }
   }
 
-  const projectBuckets = buildProjectBuckets(searchableSessions);
+  const projectBuckets = buildProjectBuckets(searchableSessions, userId);
   const totalProjects = projectBuckets.length;
   const results: ProjectConversationResult[] = [];
   let scannedProjects = 0;

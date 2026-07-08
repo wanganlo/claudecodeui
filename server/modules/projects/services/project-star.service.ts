@@ -30,12 +30,12 @@ function uniqueProjectIds(projectIds: string[]): string[] {
  *
  * The operation is idempotent: already-starred projects are ignored, unknown ids are skipped.
  */
-export function applyLegacyStarredProjectIds(projectIds: string[]): ApplyLegacyStarredProjectIdsResult {
+export function applyLegacyStarredProjectIds(projectIds: string[], userId: number = 1): ApplyLegacyStarredProjectIdsResult {
   const normalizedProjectIds = uniqueProjectIds(projectIds);
   let updated = 0;
 
   for (const projectId of normalizedProjectIds) {
-    const project = projectsDb.getProjectById(projectId);
+    const project = projectsDb.getProjectById(projectId, userId);
     if (!project) {
       continue;
     }
@@ -44,7 +44,7 @@ export function applyLegacyStarredProjectIds(projectIds: string[]): ApplyLegacyS
       continue;
     }
 
-    projectsDb.updateProjectIsStarredById(projectId, true);
+    projectsDb.updateProjectIsStarredById(projectId, true, userId);
     updated += 1;
   }
 
@@ -54,7 +54,7 @@ export function applyLegacyStarredProjectIds(projectIds: string[]): ApplyLegacyS
 /**
  * Flips `projects.isStarred` for one project and returns the new state.
  */
-export function toggleProjectStar(projectId: string): ToggleProjectStarResult {
+export function toggleProjectStar(projectId: string, userId: number = 1): ToggleProjectStarResult {
   const normalizedProjectId = normalizeProjectId(projectId);
   if (!normalizedProjectId) {
     throw new AppError('projectId is required', {

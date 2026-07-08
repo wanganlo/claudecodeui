@@ -304,13 +304,13 @@ export class GeminiSessionSynchronizer implements IProviderSessionSynchronizer {
     const lookup = new Map<string, string>();
     const knownPaths = new Set<string>();
 
-    for (const project of projectsDb.getProjectPaths()) {
+    for (const project of projectsDb.getProjectPathsForAllUsers()) {
       if (typeof project.project_path === 'string' && project.project_path.trim()) {
         knownPaths.add(project.project_path.trim());
       }
     }
 
-    for (const session of sessionsDb.getAllSessions()) {
+    for (const session of sessionsDb.getAllSessionsForAllUsers()) {
       if (session.provider === this.provider && typeof session.project_path === 'string' && session.project_path.trim()) {
         knownPaths.add(session.project_path.trim());
       }

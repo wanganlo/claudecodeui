@@ -120,7 +120,7 @@ export const sessionsService = {
    * for the lifetime of the conversation. The provider-native id is mapped to
    * this row later, when the provider runtime announces it mid-run.
    */
-  createAppSession(provider: LLMProvider, projectPath: string): CreateAppSessionResult {
+  createAppSession(provider: LLMProvider, projectPath: string, userId: number = 1): CreateAppSessionResult {
     const normalizedProjectPath = projectPath.trim();
     if (!normalizedProjectPath) {
       throw new AppError('projectPath is required.', {
@@ -130,7 +130,7 @@ export const sessionsService = {
     }
 
     const sessionId = randomUUID();
-    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath);
+    sessionsDb.createAppSession(sessionId, provider, normalizedProjectPath, userId);
 
     return {
       sessionId,
@@ -193,8 +193,8 @@ export const sessionsService = {
    * Returns archived sessions with enough project metadata for the sidebar to
    * group, filter, open, and restore them without a per-row follow-up query.
    */
-  listArchivedSessions(): ArchivedSessionListItem[] {
-    const archivedSessions = sessionsDb.getArchivedSessions();
+  listArchivedSessions(userId: number = 1): ArchivedSessionListItem[] {
+    const archivedSessions = sessionsDb.getArchivedSessions(userId);
     const projectCache = new Map<string, ReturnType<typeof projectsDb.getProjectPath>>();
 
     return archivedSessions.map((session) => {
@@ -203,7 +203,7 @@ export const sessionsService = {
 
       if (projectPath) {
         if (!projectCache.has(projectPath)) {
-          projectCache.set(projectPath, projectsDb.getProjectPath(projectPath));
+          projectCache.set(projectPath, projectsDb.getProjectPath(projectPath, userId));
         }
         project = projectCache.get(projectPath) ?? null;
       }

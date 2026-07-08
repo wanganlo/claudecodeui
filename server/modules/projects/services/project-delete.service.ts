@@ -41,7 +41,7 @@ async function unlinkJsonlIfExists(filePath: string): Promise<void> {
 /**
  * Loads all session rows for the project path and removes each distinct `jsonl_path` file on disk.
  */
-export async function deleteSessionJsonlFilesForProjectPath(projectPath: string): Promise<void> {
+export async function deleteSessionJsonlFilesForProjectPath(projectPath: string, userId: number): Promise<void> {
   const sessions = sessionsDb.getSessionsByProjectPathIncludingArchived(projectPath);
   const paths = uniqueJsonlPathsFromSessions(sessions);
 
@@ -55,7 +55,7 @@ export async function deleteSessionJsonlFilesForProjectPath(projectPath: string)
  * - **Force** (`force` true): for each session row for that `project_path`, delete the file at `jsonl_path`
  *   (when set), then remove session rows and the `projects` row.
  */
-export async function deleteOrArchiveProject(projectId: string, force: boolean): Promise<void> {
+export async function deleteOrArchiveProject(projectId: string, force: boolean, userId: number = 1): Promise<void> {
   const row = projectsDb.getProjectById(projectId);
   if (!row) {
     throw new AppError(`Unknown projectId: ${projectId}`, {
@@ -65,19 +65,19 @@ export async function deleteOrArchiveProject(projectId: string, force: boolean):
   }
 
   if (!force) {
-    projectsDb.updateProjectIsArchivedById(projectId, true);
+    projectsDb.updateProjectIsArchivedById(projectId, true, userId);
     return;
   }
 
-  await deleteSessionJsonlFilesForProjectPath(row.project_path);
+  await deleteSessionJsonlFilesForProjectPath(row.project_path, userId);
   sessionsDb.deleteSessionsByProjectPath(row.project_path);
-  projectsDb.deleteProjectById(projectId);
+  projectsDb.deleteProjectById(projectId, userId);
 }
 
 /**
  * Restores one archived project row back into the active project list.
  */
-export function restoreArchivedProject(projectId: string): void {
+export function restoreArchivedProject(projectId: string, userId: number = 1): void {
   const row = projectsDb.getProjectById(projectId);
   if (!row) {
     throw new AppError(`Unknown projectId: ${projectId}`, {
@@ -86,5 +86,5 @@ export function restoreArchivedProject(projectId: string): void {
     });
   }
 
-  projectsDb.updateProjectIsArchivedById(projectId, false);
+  projectsDb.updateProjectIsArchivedById(projectId, false, userId);
 }

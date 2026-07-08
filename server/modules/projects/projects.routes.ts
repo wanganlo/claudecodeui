@@ -3,7 +3,7 @@ import express from 'express';
 import { createProject, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
-import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+import { AppError, asyncHandler, createApiSuccessResponse, requireAdmin, requireUserId } from '@/shared/utils.js';
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
@@ -73,7 +73,7 @@ router.get(
       readQueryStringValue(req.query.skipSync).trim() === '1';
     const sessionsLimit = readOptionalNumericQueryValue(req.query.sessionsLimit) ?? undefined;
     const sessionsOffset = readOptionalNumericQueryValue(req.query.sessionsOffset) ?? undefined;
-    const projects = await getProjectsWithSessions({
+    const projects = await getProjectsWithSessions({ userId: requireUserId(req) as number,
       skipSynchronization,
       sessionsLimit,
       sessionsOffset,
@@ -84,8 +84,8 @@ router.get(
 
 router.get(
   '/archived',
-  asyncHandler(async (_req, res) => {
-    const projects = await getArchivedProjectsWithSessions();
+  asyncHandler(async (req, res) => {
+    const projects = await getArchivedProjectsWithSessions({ userId: requireUserId(req) as number });
     res.json(createApiSuccessResponse({ projects }));
   }),
 );
@@ -123,7 +123,7 @@ router.post(
       });
     }
 
-    const projectCreationResult = await createProject({
+    const projectCreationResult = await createProject({ userId: requireUserId(req) as number,
       projectPath,
       customName,
     });
@@ -148,7 +148,7 @@ router.post(
     const projectIds = Array.isArray((req.body as { projectIds?: unknown })?.projectIds)
       ? ((req.body as { projectIds: unknown[] }).projectIds as unknown[]).map((x) => String(x))
       : [];
-    const { updated } = applyLegacyStarredProjectIds(projectIds);
+    const { updated } = applyLegacyStarredProjectIds(projectIds, requireUserId(req));
     res.json({ success: true, updated });
   }),
 );
@@ -231,7 +231,7 @@ router.put('/:projectId/rename', (req, res) => {
   try {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const { displayName } = req.body as { displayName?: unknown };
-    updateProjectDisplayName(projectId, displayName);
+    updateProjectDisplayName(projectId, requireUserId(req), displayName as string);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to rename project' });
@@ -242,7 +242,7 @@ router.post(
   '/:projectId/toggle-star',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
-    const { isStarred } = toggleProjectStar(projectId);
+    const { isStarred } = toggleProjectStar(projectId, requireUserId(req));
     res.json({ success: true, isStarred });
   }),
 );
@@ -251,7 +251,7 @@ router.post(
   '/:projectId/restore',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
-    restoreArchivedProject(projectId);
+    restoreArchivedProject(projectId, requireUserId(req));
     res.json(createApiSuccessResponse({ projectId, isArchived: false }));
   }),
 );
@@ -262,10 +262,11 @@ router.post(
  */
 router.delete(
   '/:projectId',
+  requireAdmin,
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const force = req.query.force === 'true';
-    await deleteOrArchiveProject(projectId, force);
+    await deleteOrArchiveProject(projectId, force, requireUserId(req));
     res.json({ success: true });
   }),
 );

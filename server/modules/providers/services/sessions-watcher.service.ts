@@ -153,7 +153,7 @@ async function buildSessionUpsertedEvent(updatedProviderSessionId: string): Prom
   }
 
   const projectPath = row.project_path;
-  const project = projectPath ? projectsDb.getProjectPath(projectPath) : null;
+  const project = projectPath ? projectsDb.getProjectPath(projectPath, row.user_id) : null;
   const displayName = project?.custom_project_name?.trim()
     ? project.custom_project_name
     : await generateDisplayName(path.basename(projectPath ?? '') || (projectPath ?? ''), projectPath);

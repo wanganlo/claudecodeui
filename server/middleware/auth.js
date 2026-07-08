@@ -95,7 +95,7 @@ const authenticateWebSocket = (token) => {
     try {
       const user = userDb.getFirstUser();
       if (user) {
-        return { id: user.id, userId: user.id, username: user.username };
+        return { id: user.id, userId: user.id, username: user.username, is_admin: user.is_admin };
       }
       return null;
     } catch (error) {
@@ -116,12 +116,17 @@ const authenticateWebSocket = (token) => {
     if (!user) {
       return null;
     }
-    return { userId: user.id, username: user.username };
+    return { userId: user.id, username: user.username, is_admin: user.is_admin };
   } catch (error) {
     console.error('WebSocket token verification error:', error);
     return null;
   }
 };
+
+// Re-export the admin gate so JS consumers (server/index.js, routes/*.js) can
+// import it from the familiar auth module. Canonical definition lives in
+// shared/utils.ts (typed, co-located with requireUserId) to avoid cycles.
+export { requireAdmin } from '../shared/utils.js';
 
 export {
   validateApiKey,

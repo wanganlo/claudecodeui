@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => {
   const serverPort = env.SERVER_PORT || env.PORT || 3001
 
   return {
+    base: './',
     plugins: [react()],
     resolve: {
       alias: {

@@ -16,7 +16,7 @@ import type {
   ProviderSkillCreateInput,
   UpsertProviderMcpServerInput,
 } from '@/shared/types.js';
-import { AppError, asyncHandler, createApiSuccessResponse } from '@/shared/utils.js';
+import { AppError, asyncHandler, createApiSuccessResponse, requireAdmin, requireUserId } from '@/shared/utils.js';
 
 const router = express.Router();
 
@@ -422,6 +422,7 @@ router.get(
 
 router.post(
   '/:provider/skills',
+  requireAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const input = parseProviderSkillCreatePayload(req.body);
@@ -432,6 +433,7 @@ router.post(
 
 router.delete(
   '/:provider/skills/:directoryName',
+  requireAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const provider = parseProvider(req.params.provider);
     const result = await providerSkillsService.removeProviderSkill(provider, {
@@ -506,7 +508,7 @@ router.post(
 
 router.get(
   '/capabilities',
-  asyncHandler(async (_req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     res.json(createApiSuccessResponse({
       providers: providerCapabilitiesService.listAllProviderCapabilities(),
     }));
@@ -536,14 +538,14 @@ router.post(
     const body = (req.body ?? {}) as Record<string, unknown>;
     const provider = parseProvider(body.provider);
     const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
-    const result = sessionsService.createAppSession(provider, projectPath);
+    const result = sessionsService.createAppSession(provider, projectPath, requireUserId(req));
     res.status(201).json(createApiSuccessResponse(result));
   }),
 );
 
 router.get(
   '/sessions/running',
-  asyncHandler(async (_req: Request, res: Response) => {
+  asyncHandler(async (req: Request, res: Response) => {
     const sessions = sessionsService.listRunningSessions();
     res.json(createApiSuccessResponse({ sessions }));
   }),
@@ -551,14 +553,15 @@ router.get(
 
 router.get(
   '/sessions/archived',
-  asyncHandler(async (_req: Request, res: Response) => {
-    const sessions = sessionsService.listArchivedSessions();
+  asyncHandler(async (req: Request, res: Response) => {
+    const sessions = sessionsService.listArchivedSessions(requireUserId(req));
     res.json(createApiSuccessResponse({ sessions }));
   }),
 );
 
 router.delete(
   '/sessions/:sessionId',
+  requireAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
     const force = parseOptionalBooleanQuery(req.query.force, 'force') ?? false;

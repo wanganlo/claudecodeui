@@ -15,8 +15,10 @@ import NotificationsSettingsTab from '../view/tabs/NotificationsSettingsTab';
 import TasksSettingsTab from '../view/tabs/tasks-settings/TasksSettingsTab';
 import PluginSettingsTab from '../../plugins/view/PluginSettingsTab';
 import AboutTab from '../view/tabs/AboutTab';
+import UsersTab from '../view/tabs/UsersTab';
 import { useSettingsController } from '../hooks/useSettingsController';
 import { useWebPush } from '../../../hooks/useWebPush';
+import { useIsAdmin } from '../../auth/context/AuthContext';
 import type { SettingsProps } from '../types/types';
 
 type DesktopNotificationsState = {
@@ -63,6 +65,15 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
     isOpen,
     initialTab
   });
+
+  const isAdmin = useIsAdmin();
+  // Bounce non-admins off admin-only tabs (defense-in-depth alongside the
+  // sidebar hiding them). Covers deep-links via initialTab.
+  useEffect(() => {
+    if (!isAdmin && (activeTab === 'users' || activeTab === 'plugins')) {
+      setActiveTab('agents');
+    }
+  }, [isAdmin, activeTab, setActiveTab]);
 
   const {
     permission: pushPermission,
@@ -217,9 +228,11 @@ function Settings({ isOpen, onClose, projects = [], initialTab = 'agents' }: Set
 
               {activeTab === 'voice' && <VoiceSettingsTab />}
 
-              {activeTab === 'plugins' && <PluginSettingsTab />}
+              {isAdmin && activeTab === 'plugins' && <PluginSettingsTab />}
 
               {activeTab === 'about' && <AboutTab />}
+
+              {isAdmin && activeTab === 'users' && <UsersTab />}
             </div>
           </main>
         </div>

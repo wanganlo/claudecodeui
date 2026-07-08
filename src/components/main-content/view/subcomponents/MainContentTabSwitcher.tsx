@@ -12,6 +12,7 @@ type MainContentTabSwitcherProps = {
   setActiveTab: Dispatch<SetStateAction<AppTab>>;
   shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
+  shouldShowPowerUserTabs: boolean;
 };
 
 type BuiltInTab = {
@@ -31,8 +32,10 @@ type PluginTab = {
 
 type TabDefinition = BuiltInTab | PluginTab;
 
-const BASE_TABS: BuiltInTab[] = [
-  { kind: 'builtin', id: 'chat',  labelKey: 'tabs.chat',  icon: MessageSquare },
+const CHAT_TAB: BuiltInTab = { kind: 'builtin', id: 'chat', labelKey: 'tabs.chat', icon: MessageSquare };
+
+// Power-user tabs expose the host shell, filesystem, and git — admin only.
+const POWER_USER_TABS: BuiltInTab[] = [
   { kind: 'builtin', id: 'shell', labelKey: 'tabs.shell', icon: Terminal },
   { kind: 'builtin', id: 'files', labelKey: 'tabs.files', icon: Folder },
   { kind: 'builtin', id: 'git',   labelKey: 'tabs.git',   icon: GitBranch },
@@ -57,12 +60,14 @@ export default function MainContentTabSwitcher({
   setActiveTab,
   shouldShowTasksTab,
   shouldShowBrowserTab,
+  shouldShowPowerUserTabs,
 }: MainContentTabSwitcherProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
 
   const builtInTabs: BuiltInTab[] = [
-    ...BASE_TABS,
+    CHAT_TAB,
+    ...(shouldShowPowerUserTabs ? POWER_USER_TABS : []),
     ...(shouldShowBrowserTab ? [BROWSER_TAB] : []),
     ...(shouldShowTasksTab ? [TASKS_TAB] : []),
   ];
