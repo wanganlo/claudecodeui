@@ -12,6 +12,7 @@ export type PermissionMode = 'default' | 'acceptEdits' | 'auto' | 'bypassPermiss
 export interface ChatImage {
   data: string;
   name: string;
+  mimeType?: string;
 }
 
 export interface ToolResult {
