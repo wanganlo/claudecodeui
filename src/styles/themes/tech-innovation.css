@@ -1,0 +1,11 @@
+/* Theme: Tech Innovation (theme-factory) — bold, modern tech */
+:root[data-theme="tech-innovation"] {
+  --bg: 10 14 22;
+  --fg: 230 238 248;
+  --muted: 132 148 168;
+  --rule: 30 38 52;
+  --brand: 0 212 170;       /* mint */
+  --signal: 255 92 122;     /* coral */
+  --radius-card: 8px;
+  --radius-button: 6px;
+}

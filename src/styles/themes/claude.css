@@ -1,0 +1,19 @@
+/* Theme: Claude (project default, derived from docs/design-brief.md) */
+:root[data-theme="claude"] {
+  --bg: 245 243 238;       /* paper */
+  --fg: 19 22 26;          /* ink */
+  --muted: 90 96 104;      /* graphite */
+  --rule: 201 197 188;     /* hairline */
+  --brand: 46 75 208;      /* accent-blue */
+  --signal: 201 122 31;    /* signal-amber */
+  --radius-card: 6px;
+  --radius-button: 4px;
+}
+:root[data-theme="claude"].dark {
+  --bg: 17 19 22;
+  --fg: 240 238 232;
+  --muted: 156 162 170;
+  --rule: 56 60 66;
+  --brand: 138 156 255;
+  --signal: 230 162 79;
+}

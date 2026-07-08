@@ -1,0 +1,24 @@
+/* Theme: Modern Minimalist (theme-factory)
+ * Charcoal #36454f / Slate Gray #708090 / Light Gray #d3d3d3 / White #ffffff
+ * Headers + Body: DejaVu Sans
+ */
+:root[data-theme="modern-minimalist"] {
+  --bg: 255 255 255;
+  --fg: 54 69 79;
+  --muted: 112 128 144;
+  --rule: 211 211 211;
+  --brand: 54 69 79;
+  --signal: 112 128 144;
+  --radius-card: 4px;
+  --radius-button: 4px;
+  --font-display: "DejaVu Sans", system-ui, sans-serif;
+  --font-body: "DejaVu Sans", system-ui, sans-serif;
+}
+:root[data-theme="modern-minimalist"].dark {
+  --bg: 24 26 28;
+  --fg: 230 233 236;
+  --muted: 160 170 180;
+  --rule: 60 64 70;
+  --brand: 200 210 220;
+  --signal: 160 170 180;
+}
