@@ -44,25 +44,33 @@ export const projectsDb = {
         };
     },
 
-    getProjectPath(projectPath: string, userId: number = 1): ProjectRepositoryRow | null {
+    getProjectPath(projectPath: string, userId: number = 1, scopeAll: boolean = false): ProjectRepositoryRow | null {
         const db = getConnection();
         const normalizedProjectPath = normalizeProjectPath(projectPath);
-        const row = db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
-            FROM projects
-            WHERE project_path = ? AND user_id = ?
-        `).get(normalizedProjectPath, userId) as ProjectRepositoryRow | undefined;
+        const sql = scopeAll
+            ? `SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+               FROM projects
+               WHERE project_path = ?`
+            : `SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+               FROM projects
+               WHERE project_path = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        const row = (scopeAll ? stmt.get(normalizedProjectPath) : stmt.get(normalizedProjectPath, userId)) as ProjectRepositoryRow | undefined;
 
         return row ?? null;
     },
 
-    getProjectById(projectId: string, userId: number = 1): ProjectRepositoryRow | null {
+    getProjectById(projectId: string, userId: number = 1, scopeAll: boolean = false): ProjectRepositoryRow | null {
         const db = getConnection();
-        const row = db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
-            FROM projects
-            WHERE project_id = ? AND user_id = ?
-        `).get(projectId, userId) as ProjectRepositoryRow | undefined;
+        const sql = scopeAll
+            ? `SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+               FROM projects
+               WHERE project_id = ?`
+            : `SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+               FROM projects
+               WHERE project_id = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        const row = (scopeAll ? stmt.get(projectId) : stmt.get(projectId, userId)) as ProjectRepositoryRow | undefined;
 
         return row ?? null;
     },
@@ -75,54 +83,70 @@ export const projectsDb = {
      * path through this helper before touching the filesystem. Returns `null` when the
      * project row does not exist so callers can respond with a 404.
      */
-    getProjectPathById(projectId: string, userId: number = 1): string | null {
+    getProjectPathById(projectId: string, userId: number = 1, scopeAll: boolean = false): string | null {
         const db = getConnection();
-        const row = db.prepare(`
-            SELECT project_path
-            FROM projects
-            WHERE project_id = ? AND user_id = ?
-        `).get(projectId, userId) as Pick<ProjectRepositoryRow, 'project_path'> | undefined;
+        const sql = scopeAll
+            ? `SELECT project_path FROM projects WHERE project_id = ?`
+            : `SELECT project_path FROM projects WHERE project_id = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        const row = (scopeAll ? stmt.get(projectId) : stmt.get(projectId, userId)) as Pick<ProjectRepositoryRow, 'project_path'> | undefined;
 
         return row?.project_path ?? null;
     },
 
-    getProjectPaths(userId: number = 1): ProjectRepositoryRow[] {
+    getProjectPaths(userId: number = 1, scopeAll: boolean = false): ProjectRepositoryRow[] {
         const db = getConnection();
-        return db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
-            FROM projects
-            WHERE isArchived = 0 AND user_id = ?
-        `).all(userId) as ProjectRepositoryRow[];
+        const sql = scopeAll
+            ? `SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+               FROM projects
+               WHERE isArchived = 0`
+            : `SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+               FROM projects
+               WHERE isArchived = 0 AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        return (scopeAll ? stmt.all() : stmt.all(userId)) as ProjectRepositoryRow[];
     },
 
     /**
      * Archived rows are queried separately so archive-focused UIs can present
      * hidden workspaces without reintroducing them into the active sidebar list.
      */
-    getArchivedProjectPaths(userId: number = 1): ProjectRepositoryRow[] {
+    getArchivedProjectPaths(userId: number = 1, scopeAll: boolean = false): ProjectRepositoryRow[] {
         const db = getConnection();
-        return db.prepare(`
-            SELECT project_id, project_path, custom_project_name, isStarred, isArchived
-            FROM projects
-            WHERE isArchived = 1 AND user_id = ?
-        `).all(userId) as ProjectRepositoryRow[];
+        const sql = scopeAll
+            ? `SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+               FROM projects
+               WHERE isArchived = 1`
+            : `SELECT project_id, project_path, custom_project_name, isStarred, isArchived
+               FROM projects
+               WHERE isArchived = 1 AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        return (scopeAll ? stmt.all() : stmt.all(userId)) as ProjectRepositoryRow[];
     },
 
-    getCustomProjectName(projectPath: string, userId: number = 1): string | null {
+    getCustomProjectName(projectPath: string, userId: number = 1, scopeAll: boolean = false): string | null {
         const db = getConnection();
         const normalizedProjectPath = normalizeProjectPath(projectPath);
-        const row = db.prepare(`
-            SELECT custom_project_name
-            FROM projects
-            WHERE project_path = ? AND user_id = ?
-        `).get(normalizedProjectPath, userId) as Pick<ProjectRepositoryRow, 'custom_project_name'> | undefined;
+        const sql = scopeAll
+            ? `SELECT custom_project_name FROM projects WHERE project_path = ?`
+            : `SELECT custom_project_name FROM projects WHERE project_path = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        const row = (scopeAll ? stmt.get(normalizedProjectPath) : stmt.get(normalizedProjectPath, userId)) as Pick<ProjectRepositoryRow, 'custom_project_name'> | undefined;
 
         return row?.custom_project_name ?? null;
     },
 
-    updateCustomProjectName(projectPath: string, customProjectName: string | null, userId: number = 1): void {
+    updateCustomProjectName(projectPath: string, customProjectName: string | null, userId: number = 1, scopeAll: boolean = false): void {
         const db = getConnection();
         const normalizedProjectPath = normalizeProjectPath(projectPath);
+        if (scopeAll) {
+            db.prepare(`
+                UPDATE projects
+                SET custom_project_name = ?
+                WHERE project_path = ?
+            `).run(customProjectName, normalizedProjectPath);
+            return;
+        }
         db.prepare(`
             INSERT INTO projects (project_id, project_path, user_id, custom_project_name)
             VALUES (?, ?, ?, ?)
@@ -130,60 +154,85 @@ export const projectsDb = {
         `).run(randomUUID(), normalizedProjectPath, userId, customProjectName);
     },
 
-    updateCustomProjectNameById(projectId: string, customProjectName: string | null, userId: number): void {
+    updateCustomProjectNameById(projectId: string, customProjectName: string | null, userId: number, scopeAll: boolean = false): void {
         const db = getConnection();
-        db.prepare(`
-            UPDATE projects
-            SET custom_project_name = ?
-            WHERE project_id = ? AND user_id = ?
-        `).run(customProjectName, projectId, userId);
+        const sql = scopeAll
+            ? `UPDATE projects SET custom_project_name = ? WHERE project_id = ?`
+            : `UPDATE projects SET custom_project_name = ? WHERE project_id = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        if (scopeAll) {
+            stmt.run(customProjectName, projectId);
+        } else {
+            stmt.run(customProjectName, projectId, userId);
+        }
     },
 
-    updateProjectIsStarred(projectPath: string, isStarred: boolean, userId: number = 1): void {
+    updateProjectIsStarred(projectPath: string, isStarred: boolean, userId: number = 1, scopeAll: boolean = false): void {
         const db = getConnection();
         const normalizedProjectPath = normalizeProjectPath(projectPath);
-        db.prepare(`
-            UPDATE projects
-            SET isStarred = ?
-            WHERE project_path = ? AND user_id = ?
-        `).run(isStarred ? 1 : 0, normalizedProjectPath, userId);
+        const sql = scopeAll
+            ? `UPDATE projects SET isStarred = ? WHERE project_path = ?`
+            : `UPDATE projects SET isStarred = ? WHERE project_path = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        if (scopeAll) {
+            stmt.run(isStarred ? 1 : 0, normalizedProjectPath);
+        } else {
+            stmt.run(isStarred ? 1 : 0, normalizedProjectPath, userId);
+        }
     },
 
-    updateProjectIsStarredById(projectId: string, isStarred: boolean, userId: number = 1): void {
+    updateProjectIsStarredById(projectId: string, isStarred: boolean, userId: number = 1, scopeAll: boolean = false): void {
         const db = getConnection();
-        db.prepare(`
-            UPDATE projects
-            SET isStarred = ?
-            WHERE project_id = ? AND user_id = ?
-        `).run(isStarred ? 1 : 0, projectId, userId);
+        const sql = scopeAll
+            ? `UPDATE projects SET isStarred = ? WHERE project_id = ?`
+            : `UPDATE projects SET isStarred = ? WHERE project_id = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        if (scopeAll) {
+            stmt.run(isStarred ? 1 : 0, projectId);
+        } else {
+            stmt.run(isStarred ? 1 : 0, projectId, userId);
+        }
     },
 
-    updateProjectIsArchived(projectPath: string, isArchived: boolean, userId: number = 1): void {
-        const db = getConnection();
-        const normalizedProjectPath = normalizeProjectPath(projectPath);
-        db.prepare(`
-            UPDATE projects
-            SET isArchived = ?
-            WHERE project_path = ? AND user_id = ?
-        `).run(isArchived ? 1 : 0, normalizedProjectPath, userId);
-    },
-
-    updateProjectIsArchivedById(projectId: string, isArchived: boolean, userId: number = 1): void {
-        const db = getConnection();
-        db.prepare(`
-            UPDATE projects
-            SET isArchived = ?
-            WHERE project_id = ? AND user_id = ?
-        `).run(isArchived ? 1 : 0, projectId, userId);
-    },
-
-    deleteProjectPath(projectPath: string, userId: number = 1): void {
+    updateProjectIsArchived(projectPath: string, isArchived: boolean, userId: number = 1, scopeAll: boolean = false): void {
         const db = getConnection();
         const normalizedProjectPath = normalizeProjectPath(projectPath);
-        db.prepare(`
-            DELETE FROM projects
-            WHERE project_path = ? AND user_id = ?
-        `).run(normalizedProjectPath, userId);
+        const sql = scopeAll
+            ? `UPDATE projects SET isArchived = ? WHERE project_path = ?`
+            : `UPDATE projects SET isArchived = ? WHERE project_path = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        if (scopeAll) {
+            stmt.run(isArchived ? 1 : 0, normalizedProjectPath);
+        } else {
+            stmt.run(isArchived ? 1 : 0, normalizedProjectPath, userId);
+        }
+    },
+
+    updateProjectIsArchivedById(projectId: string, isArchived: boolean, userId: number = 1, scopeAll: boolean = false): void {
+        const db = getConnection();
+        const sql = scopeAll
+            ? `UPDATE projects SET isArchived = ? WHERE project_id = ?`
+            : `UPDATE projects SET isArchived = ? WHERE project_id = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        if (scopeAll) {
+            stmt.run(isArchived ? 1 : 0, projectId);
+        } else {
+            stmt.run(isArchived ? 1 : 0, projectId, userId);
+        }
+    },
+
+    deleteProjectPath(projectPath: string, userId: number = 1, scopeAll: boolean = false): void {
+        const db = getConnection();
+        const normalizedProjectPath = normalizeProjectPath(projectPath);
+        const sql = scopeAll
+            ? `DELETE FROM projects WHERE project_path = ?`
+            : `DELETE FROM projects WHERE project_path = ? AND user_id = ?`;
+        const stmt = db.prepare(sql);
+        if (scopeAll) {
+            stmt.run(normalizedProjectPath);
+        } else {
+            stmt.run(normalizedProjectPath, userId);
+        }
     },
 
     deleteProjectById(projectId: string, userId: number = 1): void {

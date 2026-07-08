@@ -1,8 +1,10 @@
 import { useCallback, useRef, useState, useEffect } from 'react';
+import { ShieldAlert } from 'lucide-react';
 import type { MainContentHeaderProps } from '../../types/types';
 import MobileMenuButton from './MobileMenuButton';
 import MainContentTabSwitcher from './MainContentTabSwitcher';
 import MainContentTitle from './MainContentTitle';
+import { useAdminScope } from '../../../../contexts/AdminScopeContext';
 
 export default function MainContentHeader({
   activeTab,
@@ -18,6 +20,7 @@ export default function MainContentHeader({
   const scrollRef = useRef<HTMLDivElement>(null);
   const [canScrollLeft, setCanScrollLeft] = useState(false);
   const [canScrollRight, setCanScrollRight] = useState(false);
+  const { scopeAll } = useAdminScope();
 
   const updateScrollState = useCallback(() => {
     const el = scrollRef.current;
@@ -46,6 +49,12 @@ export default function MainContentHeader({
             selectedSession={selectedSession}
             shouldShowTasksTab={shouldShowTasksTab}
           />
+          {scopeAll && (
+            <span className="hidden sm:inline-flex items-center gap-1 rounded bg-destructive px-2 py-0.5 text-xs font-medium text-destructive-foreground">
+              <ShieldAlert className="h-3 w-3" />
+              Superadmin
+            </span>
+          )}
         </div>
 
         <div className="relative min-w-0 flex-shrink overflow-hidden sm:flex-shrink-0">

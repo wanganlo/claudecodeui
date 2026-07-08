@@ -1,9 +1,24 @@
 import jwt from 'jsonwebtoken';
-import { userDb, appConfigDb } from '../modules/database/index.js';
+import { userDb, appConfigDb, userPreferencesDb } from '../modules/database/index.js';
 import { IS_PLATFORM } from '../constants/config.js';
 
 // Use env var if set, otherwise auto-generate a unique secret per installation
 const JWT_SECRET = process.env.JWT_SECRET || appConfigDb.getOrCreateJwtSecret();
+
+// Attach `scopeAll` flag: true only when the user is an admin AND has the
+// superadmin_view preference enabled. Reads from DB so HTTP/WS both stay in
+// sync without the client re-sending the flag. Mutates and returns the user.
+function attachScopeAll(user) {
+  if (!user) return user;
+  try {
+    const pref = userPreferencesDb.getPreferences(user.id);
+    user.scopeAll = user.is_admin === 1 && !!pref?.superadmin_view;
+  } catch (error) {
+    console.error('attachScopeAll error:', error);
+    user.scopeAll = false;
+  }
+  return user;
+}
 
 // Optional API key middleware
 const validateApiKey = (req, res, next) => {
@@ -28,7 +43,7 @@ const authenticateToken = async (req, res, next) => {
       if (!user) {
         return res.status(500).json({ error: 'Platform mode: No user found in database' });
       }
-      req.user = user;
+      req.user = attachScopeAll(user);
       return next();
     } catch (error) {
       console.error('Platform mode error:', error);
@@ -68,7 +83,7 @@ const authenticateToken = async (req, res, next) => {
       }
     }
 
-    req.user = user;
+    req.user = attachScopeAll(user);
     next();
   } catch (error) {
     console.error('Token verification error:', error);
@@ -95,7 +110,8 @@ const authenticateWebSocket = (token) => {
     try {
       const user = userDb.getFirstUser();
       if (user) {
-        return { id: user.id, userId: user.id, username: user.username, is_admin: user.is_admin };
+        attachScopeAll(user);
+        return { id: user.id, userId: user.id, username: user.username, is_admin: user.is_admin, scopeAll: !!user.scopeAll };
       }
       return null;
     } catch (error) {
@@ -116,7 +132,8 @@ const authenticateWebSocket = (token) => {
     if (!user) {
       return null;
     }
-    return { userId: user.id, username: user.username, is_admin: user.is_admin };
+    attachScopeAll(user);
+    return { userId: user.id, username: user.username, is_admin: user.is_admin, scopeAll: !!user.scopeAll };
   } catch (error) {
     console.error('WebSocket token verification error:', error);
     return null;

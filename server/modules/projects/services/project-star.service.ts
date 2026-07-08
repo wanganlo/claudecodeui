@@ -54,7 +54,11 @@ export function applyLegacyStarredProjectIds(projectIds: string[], userId: numbe
 /**
  * Flips `projects.isStarred` for one project and returns the new state.
  */
-export function toggleProjectStar(projectId: string, userId: number): ToggleProjectStarResult {
+export function toggleProjectStar(
+  projectId: string,
+  userId: number,
+  scopeAll: boolean = false,
+): ToggleProjectStarResult {
   const normalizedProjectId = normalizeProjectId(projectId);
   if (!normalizedProjectId) {
     throw new AppError('projectId is required', {
@@ -63,7 +67,7 @@ export function toggleProjectStar(projectId: string, userId: number): ToggleProj
     });
   }
 
-  const project = projectsDb.getProjectById(normalizedProjectId, userId);
+  const project = projectsDb.getProjectById(normalizedProjectId, userId, scopeAll);
   if (!project) {
     throw new AppError('Project not found', {
       code: 'PROJECT_NOT_FOUND',
@@ -72,7 +76,7 @@ export function toggleProjectStar(projectId: string, userId: number): ToggleProj
   }
 
   const nextStarredState = !Boolean(project.isStarred);
-  projectsDb.updateProjectIsStarredById(normalizedProjectId, nextStarredState, userId);
+  projectsDb.updateProjectIsStarredById(normalizedProjectId, nextStarredState, userId, scopeAll);
 
   return { isStarred: nextStarredState };
 }

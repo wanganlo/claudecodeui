@@ -2,6 +2,7 @@ import { Plus } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Button } from '../../../../shared/view/ui';
+import { useAdminScope } from '../../../../contexts/AdminScopeContext';
 import type { SessionActivityMap } from '../../../../hooks/useSessionProtection';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
@@ -26,6 +27,7 @@ type SidebarProjectSessionsProps = {
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
+  onArchiveSession: (projectName: string, sessionId: string, sessionTitle: string, provider: LLMProvider) => void;
   onDeleteSession: (
     projectName: string,
     sessionId: string,
@@ -73,11 +75,14 @@ export default function SidebarProjectSessions({
   onSaveEditingSession,
   onProjectSelect,
   onSessionSelect,
+  onArchiveSession,
   onDeleteSession,
   onLoadMoreSessions,
   onNewSession,
   t,
 }: SidebarProjectSessionsProps) {
+  const { scopeAll } = useAdminScope();
+
   if (!isExpanded) {
     return null;
   }
@@ -88,11 +93,13 @@ export default function SidebarProjectSessions({
     <div className="ml-3 space-y-1 border-l border-border pl-3">
       <div className="px-3 pb-1 pt-1 md:hidden">
         <button
-          className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98]"
+          className="flex h-8 w-full items-center justify-center gap-2 rounded-md bg-primary text-xs font-medium text-primary-foreground transition-all duration-150 hover:bg-primary/90 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-50"
           onClick={() => {
             onProjectSelect(project);
             onNewSession(project);
           }}
+          disabled={scopeAll}
+          title={scopeAll ? 'Superadmin view: new sessions disabled' : undefined}
         >
           <Plus className="h-3 w-3" />
           {t('sessions.newSession')}
@@ -104,6 +111,8 @@ export default function SidebarProjectSessions({
         size="sm"
         className="hidden h-8 w-full justify-start gap-2 bg-primary text-xs font-medium text-primary-foreground transition-colors hover:bg-primary/90 md:flex"
         onClick={() => onNewSession(project)}
+        disabled={scopeAll}
+        title={scopeAll ? 'Superadmin view: new sessions disabled' : undefined}
       >
         <Plus className="h-3 w-3" />
         {t('sessions.newSession')}
@@ -133,6 +142,7 @@ export default function SidebarProjectSessions({
               onSaveEditingSession={onSaveEditingSession}
               onProjectSelect={onProjectSelect}
               onSessionSelect={onSessionSelect}
+              onArchiveSession={onArchiveSession}
               onDeleteSession={onDeleteSession}
               t={t}
             />

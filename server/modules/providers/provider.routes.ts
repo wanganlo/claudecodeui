@@ -21,6 +21,15 @@ import { AppError, assertOwnsSession, asyncHandler, createApiSuccessResponse, re
 
 const router = express.Router();
 
+type AuthenticatedUser = {
+  is_admin?: number;
+  scopeAll?: boolean;
+};
+
+function getActingUser(req: Request): AuthenticatedUser | undefined {
+  return (req as Request & { user?: AuthenticatedUser }).user;
+}
+
 const readPathParam = (value: unknown, name: string): string => {
   if (typeof value === 'string') {
     return value;
@@ -539,6 +548,12 @@ router.post(
     const body = (req.body ?? {}) as Record<string, unknown>;
     const provider = parseProvider(body.provider);
     const projectPath = typeof body.projectPath === 'string' ? body.projectPath : '';
+    if ((req as Request & { user?: { scopeAll?: boolean } }).user?.scopeAll) {
+      throw new AppError('超管模式下不可新建对话，请先关闭超管视图', {
+        code: 'SUPERADMIN_NO_CREATE',
+        statusCode: 403,
+      });
+    }
     const result = sessionsService.createAppSession(provider, projectPath, requireUserId(req));
     res.status(201).json(createApiSuccessResponse(result));
   }),
@@ -555,20 +570,23 @@ router.get(
 router.get(
   '/sessions/archived',
   asyncHandler(async (req: Request, res: Response) => {
-    const sessions = sessionsService.listArchivedSessions(requireUserId(req));
+    const scopeAll = (req as Request & { user?: { scopeAll?: boolean } }).user?.scopeAll === true;
+    const sessions = sessionsService.listArchivedSessions(requireUserId(req), scopeAll);
     res.json(createApiSuccessResponse({ sessions }));
   }),
 );
 
 router.delete(
   '/sessions/:sessionId',
-  requireAdmin,
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
     const userId = requireUserId(req);
-    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
+    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId, getActingUser(req));
     const force = parseOptionalBooleanQuery(req.query.force, 'force') ?? false;
     const deletedFromDisk = parseOptionalBooleanQuery(req.query.deletedFromDisk, 'deletedFromDisk') ?? force;
+    if ((force || deletedFromDisk) && getActingUser(req)?.is_admin !== 1) {
+      throw new AppError('Hard deletion requires admin privileges.', { code: 'FORBIDDEN', statusCode: 403 });
+    }
     const result = await sessionsService.deleteOrArchiveSessionById(sessionId, {
       force,
       deletedFromDisk,
@@ -582,7 +600,7 @@ router.post(
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
     const userId = requireUserId(req);
-    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
+    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId, getActingUser(req));
     const result = sessionsService.restoreSessionById(sessionId);
     res.json(createApiSuccessResponse(result));
   }),
@@ -593,7 +611,7 @@ router.put(
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
     const userId = requireUserId(req);
-    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
+    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId, getActingUser(req));
     const summary = parseSessionRenameSummary(req.body);
     const result = sessionsService.renameSessionById(sessionId, summary);
     res.json(createApiSuccessResponse(result));
@@ -605,7 +623,7 @@ router.get(
   asyncHandler(async (req: Request, res: Response) => {
     const sessionId = parseSessionId(req.params.sessionId);
     const userId = requireUserId(req);
-    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
+    assertOwnsSession(sessionsDb.getSessionById(sessionId), userId, getActingUser(req));
     const limitRaw = readOptionalQueryString(req.query.limit);
     const offsetRaw = readOptionalQueryString(req.query.offset);
 

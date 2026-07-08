@@ -108,7 +108,8 @@ async function handleChatSend(
   ws: WebSocket,
   userId: number | null,
   data: AnyRecord,
-  dependencies: ChatWebSocketDependencies
+  dependencies: ChatWebSocketDependencies,
+  actingUser?: { is_admin?: number; scopeAll?: boolean } | null,
 ): Promise<void> {
   const sessionId = readRequiredSessionId(data);
   if (!sessionId) {
@@ -132,7 +133,7 @@ async function handleChatSend(
     return;
   }
   try {
-    assertOwnsSession(session, userId);
+    assertOwnsSession(session, userId, actingUser);
   } catch {
     sendProtocolError(ws, 'SESSION_NOT_FOUND', `Session "${sessionId}" was not found.`, sessionId);
     return;
@@ -352,7 +353,7 @@ export function handleChatConnection(
 
       switch (messageType) {
         case 'chat.send':
-          await handleChatSend(ws, userId, data, dependencies);
+          await handleChatSend(ws, userId, data, dependencies, request.user);
           return;
         case 'chat.abort':
           await handleChatAbort(ws, data, dependencies);

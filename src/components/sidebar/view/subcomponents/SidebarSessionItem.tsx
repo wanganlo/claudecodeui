@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { Check, Edit2, Loader2, Trash2, X } from 'lucide-react';
+import { Archive, Check, Edit2, Loader2, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip, buttonVariants } from '../../../../shared/view/ui';
@@ -24,6 +24,7 @@ type SidebarSessionItemProps = {
   onSaveEditingSession: (projectName: string, sessionId: string, summary: string, provider: LLMProvider) => void;
   onProjectSelect: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
+  onArchiveSession: (projectName: string, sessionId: string, sessionTitle: string, provider: LLMProvider) => void;
   onDeleteSession: (
     projectName: string,
     sessionId: string,
@@ -75,6 +76,7 @@ export default function SidebarSessionItem({
   onSaveEditingSession,
   onProjectSelect,
   onSessionSelect,
+  onArchiveSession,
   onDeleteSession,
   t,
 }: SidebarSessionItemProps) {
@@ -119,6 +121,10 @@ export default function SidebarSessionItem({
 
   const requestDeleteSession = () => {
     onDeleteSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
+  };
+
+  const requestArchiveSession = () => {
+    onArchiveSession(project.projectId, session.id, sessionView.sessionName, session.__provider);
   };
 
   return (
@@ -182,6 +188,18 @@ export default function SidebarSessionItem({
               </div>
             </div>
 
+            {!isProcessing && (
+              <button
+                className="ml-1 flex h-5 w-5 items-center justify-center rounded-md bg-amber-50 opacity-70 transition-transform active:scale-95 dark:bg-amber-900/20"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  requestArchiveSession();
+                }}
+                title={t('tooltips.archiveSession', 'Archive this session')}
+              >
+                <Archive className="h-2.5 w-2.5 text-amber-600 dark:text-amber-400" />
+              </button>
+            )}
             {isAdmin && !isProcessing && (
               <button
                 className="ml-1 flex h-5 w-5 items-center justify-center rounded-md bg-red-50 opacity-70 transition-transform active:scale-95 dark:bg-red-900/20"
@@ -318,6 +336,16 @@ export default function SidebarSessionItem({
                   title={t('tooltips.editSessionName')}
                 >
                   <Edit2 className="h-3 w-3 text-gray-600 dark:text-gray-400" />
+                </button>
+                <button
+                  className="flex h-6 w-6 items-center justify-center rounded bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    requestArchiveSession();
+                  }}
+                  title={t('tooltips.archiveSession', 'Archive this session')}
+                >
+                  <Archive className="h-3 w-3 text-amber-600 dark:text-amber-400" />
                 </button>
                 {isAdmin && !isProcessing && (
                   <button

@@ -16,7 +16,7 @@ router.delete('/sessions/:sessionId', async (req, res) => {
 
         const userId = requireUserId(req);
         try {
-            assertOwnsSession(sessionsDb.getSessionById(sessionId), userId);
+            assertOwnsSession(sessionsDb.getSessionById(sessionId), userId, req.user);
         } catch {
             return res.status(404).json({ success: false, error: 'Session not found' });
         }

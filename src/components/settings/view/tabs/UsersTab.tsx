@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useState } from 'react';
-import { Loader2, KeyRound, UserPlus } from 'lucide-react';
+import { Loader2, KeyRound, UserPlus, ShieldAlert } from 'lucide-react';
 import { useTranslation } from 'react-i18next';
 
 import { useAuth } from '../../../auth/context/AuthContext';
+import { useAdminScope } from '../../../../contexts/AdminScopeContext';
+import SettingsToggle from '../SettingsToggle';
 
 type UserRow = {
   id: number;
@@ -15,6 +17,7 @@ type UserRow = {
 export default function UsersTab() {
   const { t } = useTranslation('settings');
   const { token, user: currentUser } = useAuth();
+  const { scopeAll, setScopeAll, isUpdating } = useAdminScope();
   const [users, setUsers] = useState<UserRow[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
@@ -30,6 +33,13 @@ export default function UsersTab() {
   const [newPwd, setNewPwd] = useState('');
   const [confirmPwd, setConfirmPwd] = useState('');
   const [isChangingPwd, setIsChangingPwd] = useState(false);
+
+  const handleToggleScopeAll = useCallback(async () => {
+    setError('');
+    setSuccess('');
+    const next = await setScopeAll(!scopeAll);
+    setSuccess(next ? 'Superadmin view enabled' : 'Superadmin view disabled');
+  }, [scopeAll, setScopeAll]);
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -144,6 +154,28 @@ export default function UsersTab() {
 
   return (
     <div className="space-y-6">
+      {/* Superadmin scope toggle */}
+      <section className="rounded-xl border border-border bg-card p-5">
+        <div className="flex items-start justify-between gap-4">
+          <div>
+            <h3 className="mb-1 flex items-center gap-2 text-sm font-semibold">
+              <ShieldAlert className="h-4 w-4 text-destructive" />
+              Superadmin View
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              When enabled, you can view and manage all users&apos; projects and sessions.
+              New sessions cannot be created in this mode.
+            </p>
+          </div>
+          <SettingsToggle
+            checked={scopeAll}
+            onChange={handleToggleScopeAll}
+            ariaLabel="Toggle superadmin view"
+            disabled={isUpdating}
+          />
+        </div>
+      </section>
+
       {/* Change own password */}
       <section className="rounded-xl border border-border bg-card p-5">
         <h3 className="mb-4 flex items-center gap-2 text-sm font-semibold">

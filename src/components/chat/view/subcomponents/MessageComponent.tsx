@@ -1,5 +1,6 @@
 import { memo, useMemo, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
+import { FileIcon } from 'lucide-react';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type {
@@ -92,15 +93,32 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             </div>
             {message.images && message.images.length > 0 && (
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {message.images.map((img, idx) => (
-                  <img
-                    key={img.name || idx}
-                    src={img.data}
-                    alt={img.name}
-                    className="h-auto max-w-full cursor-pointer rounded-lg transition-opacity hover:opacity-90"
-                    onClick={() => window.open(img.data, '_blank')}
-                  />
-                ))}
+                {message.images.map((img, idx) => {
+                  const isImage =
+                    (typeof img.mimeType === 'string' && img.mimeType.startsWith('image/')) ||
+                    (typeof img.data === 'string' && img.data.startsWith('data:image'));
+                  return isImage ? (
+                    <img
+                      key={img.name || idx}
+                      src={img.data}
+                      alt={img.name}
+                      className="h-auto max-w-full cursor-pointer rounded-lg transition-opacity hover:opacity-90"
+                      onClick={() => window.open(img.data, '_blank')}
+                    />
+                  ) : (
+                    <a
+                      key={img.name || idx}
+                      href={img.data}
+                      download={img.name}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="flex items-center gap-2 rounded-lg border border-border bg-muted/50 p-2 transition-colors hover:bg-muted"
+                    >
+                      <FileIcon className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+                      <span className="truncate text-xs text-foreground">{img.name}</span>
+                    </a>
+                  );
+                })}
               </div>
             )}
             <div className="mt-1 flex items-center justify-end gap-1 text-xs text-blue-100">

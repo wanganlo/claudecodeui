@@ -131,7 +131,11 @@ export function requireUserId(req: import('express').Request): number {
 export function assertOwnsSession(
   session: { user_id?: number | null } | null | undefined,
   userId: number,
+  actingUser?: { is_admin?: number; scopeAll?: boolean } | null,
 ): asserts session is { user_id: number } {
+  if (actingUser && actingUser.is_admin === 1 && actingUser.scopeAll) {
+    return;
+  }
   if (!session || session.user_id !== userId) {
     throw new AppError('Session not found', {
       code: 'SESSION_NOT_FOUND',

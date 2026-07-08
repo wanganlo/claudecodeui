@@ -12,6 +12,7 @@ const router = express.Router();
 
 type AuthenticatedUser = {
   id?: number | string;
+  scopeAll?: boolean;
 };
 
 function readQueryStringValue(value: unknown): string {
@@ -73,7 +74,10 @@ router.get(
       readQueryStringValue(req.query.skipSync).trim() === '1';
     const sessionsLimit = readOptionalNumericQueryValue(req.query.sessionsLimit) ?? undefined;
     const sessionsOffset = readOptionalNumericQueryValue(req.query.sessionsOffset) ?? undefined;
-    const projects = await getProjectsWithSessions({ userId: requireUserId(req) as number,
+    const scopeAll = (req as typeof req & { user?: AuthenticatedUser }).user?.scopeAll === true;
+    const projects = await getProjectsWithSessions({
+      userId: requireUserId(req) as number,
+      scopeAll,
       skipSynchronization,
       sessionsLimit,
       sessionsOffset,
@@ -85,7 +89,11 @@ router.get(
 router.get(
   '/archived',
   asyncHandler(async (req, res) => {
-    const projects = await getArchivedProjectsWithSessions({ userId: requireUserId(req) as number });
+    const scopeAll = (req as typeof req & { user?: AuthenticatedUser }).user?.scopeAll === true;
+    const projects = await getArchivedProjectsWithSessions({
+      userId: requireUserId(req) as number,
+      scopeAll,
+    });
     res.json(createApiSuccessResponse({ projects }));
   }),
 );
@@ -96,7 +104,8 @@ router.get(
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const limit = parseNonNegativeIntQuery(req.query.limit, 'limit', 20);
     const offset = parseNonNegativeIntQuery(req.query.offset, 'offset', 0);
-    const sessionsPage = await getProjectSessionsPage(projectId, { limit, offset, userId: requireUserId(req) });
+    const scopeAll = (req as typeof req & { user?: AuthenticatedUser }).user?.scopeAll === true;
+    const sessionsPage = await getProjectSessionsPage(projectId, { limit, offset, userId: requireUserId(req), scopeAll });
     res.json(sessionsPage);
   }),
 );
@@ -231,7 +240,8 @@ router.put('/:projectId/rename', (req, res) => {
   try {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const { displayName } = req.body as { displayName?: unknown };
-    updateProjectDisplayName(projectId, requireUserId(req), displayName as string);
+    const scopeAll = (req as typeof req & { user?: AuthenticatedUser }).user?.scopeAll === true;
+    updateProjectDisplayName(projectId, requireUserId(req), displayName as string, scopeAll);
     res.json({ success: true });
   } catch (error) {
     res.status(500).json({ error: error instanceof Error ? error.message : 'Failed to rename project' });
@@ -242,7 +252,8 @@ router.post(
   '/:projectId/toggle-star',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
-    const { isStarred } = toggleProjectStar(projectId, requireUserId(req));
+    const scopeAll = (req as typeof req & { user?: AuthenticatedUser }).user?.scopeAll === true;
+    const { isStarred } = toggleProjectStar(projectId, requireUserId(req), scopeAll);
     res.json({ success: true, isStarred });
   }),
 );
@@ -251,7 +262,8 @@ router.post(
   '/:projectId/restore',
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
-    restoreArchivedProject(projectId, requireUserId(req));
+    const scopeAll = (req as typeof req & { user?: AuthenticatedUser }).user?.scopeAll === true;
+    restoreArchivedProject(projectId, requireUserId(req), scopeAll);
     res.json(createApiSuccessResponse({ projectId, isArchived: false }));
   }),
 );
@@ -266,7 +278,8 @@ router.delete(
   asyncHandler(async (req, res) => {
     const projectId = typeof req.params.projectId === 'string' ? req.params.projectId : '';
     const force = req.query.force === 'true';
-    await deleteOrArchiveProject(projectId, force, requireUserId(req));
+    const scopeAll = (req as typeof req & { user?: AuthenticatedUser }).user?.scopeAll === true;
+    await deleteOrArchiveProject(projectId, force, requireUserId(req), scopeAll);
     res.json({ success: true });
   }),
 );

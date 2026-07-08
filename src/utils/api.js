@@ -244,6 +244,12 @@ export const api = {
       authenticatedFetch('/api/user/complete-onboarding', {
         method: 'POST',
       }),
+    preferences: () => authenticatedFetch('/api/user/preferences'),
+    setPreferences: (preferences) =>
+      authenticatedFetch('/api/user/preferences', {
+        method: 'PUT',
+        body: JSON.stringify(preferences),
+      }),
   },
 
   // Generic GET method for any endpoint

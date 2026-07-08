@@ -55,8 +55,13 @@ export async function deleteSessionJsonlFilesForProjectPath(projectPath: string,
  * - **Force** (`force` true): for each session row for that `project_path`, delete the file at `jsonl_path`
  *   (when set), then remove session rows and the `projects` row.
  */
-export async function deleteOrArchiveProject(projectId: string, force: boolean, userId: number): Promise<void> {
-  const row = projectsDb.getProjectById(projectId, userId);
+export async function deleteOrArchiveProject(
+  projectId: string,
+  force: boolean,
+  userId: number,
+  scopeAll: boolean = false,
+): Promise<void> {
+  const row = projectsDb.getProjectById(projectId, userId, scopeAll);
   if (!row) {
     throw new AppError(`Unknown projectId: ${projectId}`, {
       code: 'PROJECT_NOT_FOUND',
@@ -65,20 +70,20 @@ export async function deleteOrArchiveProject(projectId: string, force: boolean, 
   }
 
   if (!force) {
-    projectsDb.updateProjectIsArchivedById(projectId, true, userId);
+    projectsDb.updateProjectIsArchivedById(projectId, true, userId, scopeAll);
     return;
   }
 
   await deleteSessionJsonlFilesForProjectPath(row.project_path, userId);
-  sessionsDb.deleteSessionsByProjectPath(row.project_path, userId);
+  sessionsDb.deleteSessionsByProjectPath(row.project_path, userId, scopeAll);
   projectsDb.deleteProjectById(projectId, userId);
 }
 
 /**
  * Restores one archived project row back into the active project list.
  */
-export function restoreArchivedProject(projectId: string, userId: number): void {
-  const row = projectsDb.getProjectById(projectId, userId);
+export function restoreArchivedProject(projectId: string, userId: number, scopeAll: boolean = false): void {
+  const row = projectsDb.getProjectById(projectId, userId, scopeAll);
   if (!row) {
     throw new AppError(`Unknown projectId: ${projectId}`, {
       code: 'PROJECT_NOT_FOUND',
@@ -86,5 +91,5 @@ export function restoreArchivedProject(projectId: string, userId: number): void 
     });
   }
 
-  projectsDb.updateProjectIsArchivedById(projectId, false, userId);
+  projectsDb.updateProjectIsArchivedById(projectId, false, userId, scopeAll);
 }

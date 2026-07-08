@@ -40,6 +40,12 @@ export type SidebarProjectListProps = {
   onSaveProjectName: (projectName: string) => void;
   onDeleteProject: (project: Project) => void;
   onSessionSelect: (session: SessionWithProvider, projectName: string) => void;
+  onArchiveSession: (
+    projectName: string,
+    sessionId: string,
+    sessionTitle: string,
+    provider: LLMProvider,
+  ) => void;
   onDeleteSession: (
     projectName: string,
     sessionId: string,
@@ -86,6 +92,7 @@ export default function SidebarProjectList({
   onSaveProjectName,
   onDeleteProject,
   onSessionSelect,
+  onArchiveSession,
   onDeleteSession,
   onNewSession,
   onEditingSessionNameChange,
@@ -149,6 +156,7 @@ export default function SidebarProjectList({
               onSaveProjectName={onSaveProjectName}
               onDeleteProject={onDeleteProject}
               onSessionSelect={onSessionSelect}
+              onArchiveSession={onArchiveSession}
               onDeleteSession={onDeleteSession}
               onLoadMoreSessions={onLoadMoreSessions}
               activeSessions={activeSessions}

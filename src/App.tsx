@@ -3,6 +3,7 @@ import { I18nextProvider } from 'react-i18next';
 
 import { ThemeProvider } from './contexts/ThemeContext';
 import { AuthProvider, ProtectedRoute } from './components/auth';
+import { AdminScopeProvider } from './contexts/AdminScopeContext';
 import { TaskMasterProvider } from './contexts/TaskMasterContext';
 import { TasksSettingsProvider } from './contexts/TasksSettingsContext';
 import { WebSocketProvider } from './contexts/WebSocketContext';
@@ -107,10 +108,11 @@ export default function App() {
     <I18nextProvider i18n={i18n}>
       <ThemeProvider>
         <AuthProvider>
-          <WebSocketProvider>
-            <PluginsProvider>
-              <TasksSettingsProvider>
-                <TaskMasterProvider>
+          <AdminScopeProvider>
+            <WebSocketProvider>
+              <PluginsProvider>
+                <TasksSettingsProvider>
+                  <TaskMasterProvider>
                 <ProtectedRoute>
                   <Router basename={routerBasename}>
                     <Routes>
@@ -123,6 +125,7 @@ export default function App() {
               </TasksSettingsProvider>
             </PluginsProvider>
           </WebSocketProvider>
+          </AdminScopeProvider>
         </AuthProvider>
       </ThemeProvider>
     </I18nextProvider>

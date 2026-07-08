@@ -1,10 +1,18 @@
 import express from 'express';
-import { userDb } from '../modules/database/index.js';
+import { userDb, userPreferencesDb } from '../modules/database/index.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { getSystemGitConfig } from '../utils/gitConfig.js';
 import { spawn } from 'child_process';
 
 const router = express.Router();
+
+function readJsonBody(req) {
+  try {
+    return req.body && typeof req.body === 'object' ? req.body : {};
+  } catch {
+    return {};
+  }
+}
 
 function spawnAsync(command, args, options = {}) {
   return new Promise((resolve, reject) => {
@@ -24,6 +32,50 @@ function spawnAsync(command, args, options = {}) {
     });
   });
 }
+
+router.get('/preferences', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (userId === undefined || userId === null) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    const preferences = userPreferencesDb.getPreferences(Number(userId));
+    res.json({
+      success: true,
+      preferences,
+      scopeAll: req.user?.scopeAll ?? false,
+    });
+  } catch (error) {
+    console.error('Error getting user preferences:', error);
+    res.status(500).json({ error: 'Failed to get user preferences' });
+  }
+});
+
+router.put('/preferences', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user?.id;
+    if (userId === undefined || userId === null) {
+      return res.status(401).json({ error: 'Authentication required' });
+    }
+    if (req.user?.is_admin !== 1) {
+      return res.status(403).json({ error: 'Admin privileges required' });
+    }
+    const body = readJsonBody(req);
+    const { superadmin_view } = body;
+    if (typeof superadmin_view !== 'boolean') {
+      return res.status(400).json({ error: 'superadmin_view must be a boolean' });
+    }
+    const preferences = userPreferencesDb.setPreference(Number(userId), 'superadmin_view', superadmin_view);
+    res.json({
+      success: true,
+      preferences,
+      scopeAll: req.user?.is_admin === 1 && preferences.superadmin_view,
+    });
+  } catch (error) {
+    console.error('Error setting user preferences:', error);
+    res.status(500).json({ error: 'Failed to set user preferences' });
+  }
+});
 
 router.get('/git-config', authenticateToken, async (req, res) => {
   try {

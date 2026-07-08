@@ -140,8 +140,13 @@ export async function createProject(
 /**
  * Sets `projects.custom_project_name` for the given `projectId` (or clears it when empty).
  */
-export function updateProjectDisplayName(projectId: string, userId: number, newDisplayName: unknown): void {
-  const row = projectsDb.getProjectById(projectId, userId);
+export function updateProjectDisplayName(
+  projectId: string,
+  userId: number,
+  newDisplayName: unknown,
+  scopeAll: boolean = false,
+): void {
+  const row = projectsDb.getProjectById(projectId, userId, scopeAll);
   if (!row) {
     throw new AppError(`Unknown projectId: ${projectId}`, {
       code: 'PROJECT_NOT_FOUND',
@@ -149,5 +154,5 @@ export function updateProjectDisplayName(projectId: string, userId: number, newD
     });
   }
   const trimmed = typeof newDisplayName === 'string' ? newDisplayName.trim() : '';
-  projectsDb.updateCustomProjectNameById(projectId, trimmed.length > 0 ? trimmed : null, userId);
+  projectsDb.updateCustomProjectNameById(projectId, trimmed.length > 0 ? trimmed : null, userId, scopeAll);
 }

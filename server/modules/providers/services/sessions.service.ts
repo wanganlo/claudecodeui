@@ -193,8 +193,8 @@ export const sessionsService = {
    * Returns archived sessions with enough project metadata for the sidebar to
    * group, filter, open, and restore them without a per-row follow-up query.
    */
-  listArchivedSessions(userId: number = 1): ArchivedSessionListItem[] {
-    const archivedSessions = sessionsDb.getArchivedSessions(userId);
+  listArchivedSessions(userId: number = 1, scopeAll: boolean = false): ArchivedSessionListItem[] {
+    const archivedSessions = sessionsDb.getArchivedSessions(userId, scopeAll);
     const projectCache = new Map<string, ReturnType<typeof projectsDb.getProjectPath>>();
 
     return archivedSessions.map((session) => {
@@ -203,7 +203,7 @@ export const sessionsService = {
 
       if (projectPath) {
         if (!projectCache.has(projectPath)) {
-          projectCache.set(projectPath, projectsDb.getProjectPath(projectPath, userId));
+          projectCache.set(projectPath, projectsDb.getProjectPath(projectPath, userId, scopeAll));
         }
         project = projectCache.get(projectPath) ?? null;
       }

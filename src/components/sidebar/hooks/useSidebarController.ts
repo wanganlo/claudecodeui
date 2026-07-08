@@ -752,6 +752,33 @@ export function useSidebarController({
     }
   }, [fetchArchivedSessions, onSessionDelete, sessionDeleteConfirmation, t]);
 
+  /**
+   * Archives a session immediately (soft-delete) without a confirmation dialog.
+   * This is the handler for the per-session archive button shown to all users.
+   */
+  const archiveSession = useCallback(
+    async (_projectId: string, sessionId: string, _sessionTitle: string, _provider: LLMProvider) => {
+      try {
+        const response = await api.deleteSession(sessionId, false);
+        if (response.ok) {
+          onSessionDelete?.(sessionId);
+          await fetchArchivedSessions();
+        } else {
+          const errorText = await response.text();
+          console.error('[Sidebar] Failed to archive session:', {
+            status: response.status,
+            error: errorText,
+          });
+          alert(t('messages.archiveSessionFailed', 'Failed to archive session'));
+        }
+      } catch (error) {
+        console.error('[Sidebar] Error archiving session:', error);
+        alert(t('messages.archiveSessionError', 'Error archiving session'));
+      }
+    },
+    [fetchArchivedSessions, onSessionDelete, t],
+  );
+
   const requestProjectDelete = useCallback(
     (project: Project) => {
       setDeleteConfirmation({
@@ -961,6 +988,7 @@ export function useSidebarController({
     saveProjectName,
     showDeleteSessionConfirmation,
     confirmDeleteSession,
+    archiveSession,
     requestProjectDelete,
     confirmDeleteProject,
     handleProjectSelect,

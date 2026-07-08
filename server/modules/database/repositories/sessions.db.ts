@@ -312,16 +312,19 @@ export const sessionsDb = {
    * Archived rows are intentionally queried separately so the caller can render
    * them in a dedicated view without reintroducing them into active session lists.
    */
-  getArchivedSessions(userId: number = 1): SessionRow[] {
+  getArchivedSessions(userId: number = 1, scopeAll: boolean = false): SessionRow[] {
     const db = getConnection();
-    const rows = db
-      .prepare(
-        `SELECT ${SESSION_ROW_COLUMNS}
+    const sql = scopeAll
+      ? `SELECT ${SESSION_ROW_COLUMNS}
+         FROM sessions
+         WHERE isArchived = 1
+         ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC`
+      : `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
          WHERE isArchived = 1 AND user_id = ?
-         ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC`
-      )
-      .all(userId) as SessionRow[];
+         ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC`;
+    const stmt = db.prepare(sql);
+    const rows = (scopeAll ? stmt.all() : stmt.all(userId)) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
@@ -345,56 +348,78 @@ export const sessionsDb = {
    * Permanent project deletion must see every session row for the path,
    * including archived ones, so their transcript files can be cleaned up.
    */
-  getSessionsByProjectPathIncludingArchived(projectPath: string, userId: number = 1): SessionRow[] {
+  getSessionsByProjectPathIncludingArchived(projectPath: string, userId: number = 1, scopeAll: boolean = false): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    const rows = db
-      .prepare(
-        `SELECT ${SESSION_ROW_COLUMNS}
+    const sql = scopeAll
+      ? `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
-         WHERE project_path = ? AND user_id = ?`
-      )
-      .all(normalizedProjectPath, userId) as SessionRow[];
+         WHERE project_path = ?`
+      : `SELECT ${SESSION_ROW_COLUMNS}
+         FROM sessions
+         WHERE project_path = ? AND user_id = ?`;
+    const stmt = db.prepare(sql);
+    const rows = (scopeAll ? stmt.all(normalizedProjectPath) : stmt.all(normalizedProjectPath, userId)) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
 
-  getSessionsByProjectPathPage(projectPath: string, limit: number, offset: number, userId: number = 1): SessionRow[] {
+  getSessionsByProjectPathPage(projectPath: string, limit: number, offset: number, userId: number = 1, scopeAll: boolean = false): SessionRow[] {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    const rows = db
-      .prepare(
-        `SELECT ${SESSION_ROW_COLUMNS}
+    const sql = scopeAll
+      ? `SELECT ${SESSION_ROW_COLUMNS}
+         FROM sessions
+         WHERE project_path = ?
+           AND isArchived = 0
+         ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC
+         LIMIT ? OFFSET ?`
+      : `SELECT ${SESSION_ROW_COLUMNS}
          FROM sessions
          WHERE project_path = ? AND user_id = ?
            AND isArchived = 0
          ORDER BY datetime(COALESCE(updated_at, created_at)) DESC, session_id DESC
-         LIMIT ? OFFSET ?`
-      )
-      .all(normalizedProjectPath, userId, limit, offset) as SessionRow[];
+         LIMIT ? OFFSET ?`;
+    const stmt = db.prepare(sql);
+    const rows = (scopeAll
+      ? stmt.all(normalizedProjectPath, limit, offset)
+      : stmt.all(normalizedProjectPath, userId, limit, offset)) as SessionRow[];
 
     return normalizeSessionRows(rows);
   },
 
-  countSessionsByProjectPath(projectPath: string, userId: number = 1): number {
+  countSessionsByProjectPath(projectPath: string, userId: number = 1, scopeAll: boolean = false): number {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    const row = db
-      .prepare(
-        `SELECT COUNT(*) AS count
+    const sql = scopeAll
+      ? `SELECT COUNT(*) AS count
+         FROM sessions
+         WHERE project_path = ?
+           AND isArchived = 0`
+      : `SELECT COUNT(*) AS count
          FROM sessions
          WHERE project_path = ? AND user_id = ?
-           AND isArchived = 0`
-      )
-      .get(normalizedProjectPath, userId) as { count: number } | undefined;
+           AND isArchived = 0`;
+    const stmt = db.prepare(sql);
+    const row = (scopeAll
+      ? stmt.get(normalizedProjectPath)
+      : stmt.get(normalizedProjectPath, userId)) as { count: number } | undefined;
 
     return Number(row?.count ?? 0);
   },
 
-  deleteSessionsByProjectPath(projectPath: string, userId: number = 1): void {
+  deleteSessionsByProjectPath(projectPath: string, userId: number = 1, scopeAll: boolean = false): void {
     const db = getConnection();
     const normalizedProjectPath = normalizeProjectPath(projectPath);
-    db.prepare(`DELETE FROM sessions WHERE project_path = ? AND user_id = ?`).run(normalizedProjectPath, userId);
+    const sql = scopeAll
+      ? `DELETE FROM sessions WHERE project_path = ?`
+      : `DELETE FROM sessions WHERE project_path = ? AND user_id = ?`;
+    const stmt = db.prepare(sql);
+    if (scopeAll) {
+      stmt.run(normalizedProjectPath);
+    } else {
+      stmt.run(normalizedProjectPath, userId);
+    }
   },
 
   getSessionName(sessionId: string, provider: string): string | null {
