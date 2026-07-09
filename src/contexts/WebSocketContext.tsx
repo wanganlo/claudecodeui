@@ -1,7 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react';
-import { useAuth } from '../components/auth/context/AuthContext';
 import { useAdminScope } from './AdminScopeContext';
 import { IS_PLATFORM } from '../constants/config';
+import { AUTH_TOKEN_STORAGE_KEY } from '../components/auth/constants';
 
 /**
  * One frame received from the chat websocket. The server guarantees every
@@ -52,9 +52,10 @@ export const useWebSocket = () => {
   return context;
 };
 
-const buildWebSocketUrl = (token: string | null) => {
+const buildWebSocketUrl = () => {
   const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
   if (IS_PLATFORM) return `${protocol}//${window.location.host}/ws`; // Platform mode: Use same domain as the page (goes through proxy)
+  const token = localStorage.getItem(AUTH_TOKEN_STORAGE_KEY);
   if (!token) return null;
   return `${protocol}//${window.location.host}/ws?token=${encodeURIComponent(token)}`; // OSS mode: Use same host:port that served the page
 };
@@ -72,7 +73,11 @@ const useWebSocketProviderState = (): WebSocketContextType => {
   const [latestMessage, setLatestMessage] = useState<ServerEvent | null>(null);
   const [isConnected, setIsConnected] = useState(false);
   const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
-  const { token } = useAuth();
+  // Incremented every time we intentionally open a new socket. Stored on the
+  // socket instance so that stale reconnect timeouts from a previously closed
+  // socket cannot overwrite the current connection.
+  const socketGenerationRef = useRef(0);
+  const [token, setToken] = useState<string | null>(() => localStorage.getItem(AUTH_TOKEN_STORAGE_KEY));
   const { scopeAll } = useAdminScope();
 
   const dispatch = useCallback((event: ServerEvent) => {
@@ -104,17 +109,48 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     };
   }, [token, scopeAll]); // everytime token or scopeAll changes, we reconnect
 
+  // Keep the websocket token in sync with localStorage even when the value is
+  // updated outside of React (e.g. authenticatedFetch X-Refreshed-Token or
+  // login in another tab). This guarantees WebSocket and HTTP API use the same
+  // identity.
+  useEffect(() => {
+    const handleStorageChange = (event: StorageEvent) => {
+      if (event.key !== AUTH_TOKEN_STORAGE_KEY) return;
+      setToken(event.newValue);
+    };
+    window.addEventListener('storage', handleStorageChange);
+    return () => window.removeEventListener('storage', handleStorageChange);
+  }, []);
+
   const connect = useCallback(() => {
     if (unmountedRef.current) return; // Prevent connection if unmounted
     try {
-      // Construct WebSocket URL
-      const wsUrl = buildWebSocketUrl(token);
+      // Construct WebSocket URL from the current localStorage token so it can
+      // never drift from the token used by authenticatedFetch.
+      const wsUrl = buildWebSocketUrl();
 
       if (!wsUrl) return console.warn('No authentication token found for WebSocket connection');
 
+      // Cancel any pending reconnect before opening a new socket, and bump the
+      // generation so that a late reconnect timeout from a closed socket is
+      // ignored instead of overwriting the current connection.
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+      const generation = ++socketGenerationRef.current;
+
       const websocket = new WebSocket(wsUrl);
+      // Tag the socket with its generation so onclose can tell if it is stale.
+      (websocket as any).__socketGeneration = generation;
 
       websocket.onopen = () => {
+        // Only honor this socket if it is the most recent one we intentionally
+        // opened. Prevents stale reconnect timeouts from hijacking wsRef.
+        if (generation !== socketGenerationRef.current) {
+          websocket.close();
+          return;
+        }
         setIsConnected(true);
         wsRef.current = websocket;
         if (hasConnectedRef.current) {
@@ -135,7 +171,15 @@ const useWebSocketProviderState = (): WebSocketContextType => {
 
       websocket.onclose = () => {
         setIsConnected(false);
-        wsRef.current = null;
+        // Only clear wsRef if this socket is still the current one.
+        if (wsRef.current === websocket) {
+          wsRef.current = null;
+        }
+
+        // Do not schedule reconnect from a stale socket.
+        if ((websocket as any).__socketGeneration !== socketGenerationRef.current) {
+          return;
+        }
 
         // Attempt to reconnect after 3 seconds
         reconnectTimeoutRef.current = setTimeout(() => {
@@ -151,7 +195,7 @@ const useWebSocketProviderState = (): WebSocketContextType => {
     } catch (error) {
       console.error('Error creating WebSocket connection:', error);
     }
-  }, [token, scopeAll, dispatch]); // everytime token or scopeAll changes, we reconnect
+  }, [scopeAll, dispatch]); // reconnect when scopeAll changes; token is read from localStorage dynamically
 
   const sendMessage = useCallback((message: unknown) => {
     const socket = wsRef.current;

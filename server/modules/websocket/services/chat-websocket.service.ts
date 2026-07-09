@@ -135,6 +135,13 @@ async function handleChatSend(
   try {
     assertOwnsSession(session, userId, actingUser);
   } catch {
+    console.warn('[Chat] SESSION_NOT_FOUND for chat.send', {
+      sessionId,
+      requestedByUserId: userId,
+      actingUser: actingUser ? { is_admin: actingUser.is_admin, scopeAll: actingUser.scopeAll } : null,
+      sessionOwnerUserId: session.user_id,
+      sessionProjectPath: session.project_path,
+    });
     sendProtocolError(ws, 'SESSION_NOT_FOUND', `Session "${sessionId}" was not found.`, sessionId);
     return;
   }
