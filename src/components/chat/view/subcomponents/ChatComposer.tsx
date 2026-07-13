@@ -15,6 +15,7 @@ import { ImageIcon, MessageSquareIcon, XIcon, Loader2, ChevronDown, Check } from
 
 import { useVoiceInput } from '../../hooks/useVoiceInput';
 import { useVoiceAvailable } from '../../hooks/useVoiceAvailable';
+import { getFileId } from '../../utils/classifyFile';
 import type { SessionActivity } from '../../../../hooks/useSessionProtection';
 import type { PendingPermissionRequest, PermissionMode } from '../../types/types';
 import type { ProviderModelOption } from '../../../../types/app';
@@ -74,10 +75,10 @@ interface ChatComposerProps {
   onClearInput: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement> | MouseEvent<HTMLButtonElement> | TouchEvent<HTMLButtonElement>) => void;
   isDragActive: boolean;
-  attachedImages: File[];
-  onRemoveImage: (index: number) => void;
-  uploadingImages: Map<string, number>;
-  imageErrors: Map<string, string>;
+  attachedFiles: File[];
+  onRemoveFile: (file: File) => void;
+  attachmentResults: Map<string, { text?: string; path?: string }>;
+  attachmentErrors: Map<string, string>;
   showFileDropdown: boolean;
   filteredFiles: MentionableFile[];
   selectedFileIndex: number;
@@ -90,7 +91,7 @@ interface ChatComposerProps {
   frequentCommands: SlashCommand[];
   getRootProps: (...args: unknown[]) => Record<string, unknown>;
   getInputProps: (...args: unknown[]) => Record<string, unknown>;
-  openImagePicker: () => void;
+  openFilePicker: () => void;
   inputHighlightRef: RefObject<HTMLDivElement>;
   renderInputWithMentions: (text: string) => ReactNode;
   textareaRef: RefObject<HTMLTextAreaElement>;
@@ -129,10 +130,10 @@ export default function ChatComposer({
   onClearInput,
   onSubmit,
   isDragActive,
-  attachedImages,
-  onRemoveImage,
-  uploadingImages,
-  imageErrors,
+  attachedFiles,
+  onRemoveFile,
+  attachmentResults,
+  attachmentErrors,
   showFileDropdown,
   filteredFiles,
   selectedFileIndex,
@@ -145,7 +146,7 @@ export default function ChatComposer({
   frequentCommands,
   getRootProps,
   getInputProps,
-  openImagePicker,
+  openFilePicker,
   inputHighlightRef,
   renderInputWithMentions,
   textareaRef,
@@ -348,17 +349,18 @@ export default function ChatComposer({
             </div>
           )}
 
-          {attachedImages.length > 0 && (
+          {attachedFiles.length > 0 && (
             <PromptInputHeader>
               <div className="rounded-xl bg-muted/40 p-2">
                 <div className="flex flex-wrap gap-2">
-                  {attachedImages.map((file, index) => (
+                  {attachedFiles.map((file) => (
                     <ImageAttachment
-                      key={index}
+                      key={getFileId(file)}
                       file={file}
-                      onRemove={() => onRemoveImage(index)}
-                      uploadProgress={uploadingImages.get(file.name)}
-                      error={imageErrors.get(file.name)}
+                      onRemove={() => onRemoveFile(file)}
+                      textPreview={attachmentResults.get(getFileId(file))?.text}
+                      pathPreview={attachmentResults.get(getFileId(file))?.path}
+                      error={attachmentErrors.get(getFileId(file))}
                     />
                   ))}
                 </div>
@@ -395,7 +397,7 @@ export default function ChatComposer({
           <PromptInputTools>
             <PromptInputButton
               tooltip={{ content: t('input.attachFiles') }}
-              onClick={openImagePicker}
+              onClick={openFilePicker}
             >
               <ImageIcon />
             </PromptInputButton>

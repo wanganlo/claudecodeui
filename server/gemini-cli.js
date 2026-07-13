@@ -144,8 +144,27 @@ async function spawnGemini(command, options = {}, ws) {
     const args = [];
 
     // Add prompt flag with command if we have a command
+    let commandWithAttachments = command;
     if (command && command.trim()) {
         args.push('--prompt', command);
+
+        // Inject text/pdf attachments and binary path references into the prompt.
+        if (options.attachments && options.attachments.length > 0) {
+            const textParts = options.attachments
+                .filter((a) => a.kind === 'text' || a.kind === 'pdf')
+                .map((a) => `\n\n[File: ${a.name}]\n\`\`\`\n${a.text || ''}\n\`\`\``);
+            const pathParts = options.attachments
+                .filter((a) => a.kind === 'binary')
+                .map((a) => `\n\n[File reference: ${a.name} at project path ${a.path}]`);
+            const attachmentPrefix = [...textParts, ...pathParts].join('');
+            if (attachmentPrefix) {
+                commandWithAttachments = command + attachmentPrefix;
+                const promptIndex = args.indexOf('--prompt');
+                if (promptIndex !== -1) {
+                    args[promptIndex + 1] = commandWithAttachments;
+                }
+            }
+        }
     }
 
     // If we have a sessionId, we want to resume
@@ -190,13 +209,13 @@ async function spawnGemini(command, options = {}, ws) {
 
             // Include the full image paths in the prompt for Gemini to reference
             // Gemini CLI can read images from file paths in the prompt
-            if (tempImagePaths.length > 0 && command && command.trim()) {
+            if (tempImagePaths.length > 0 && commandWithAttachments && commandWithAttachments.trim()) {
                 const imageNote = `\n\n[Images given: ${tempImagePaths.length} images are located at the following paths:]\n${tempImagePaths.map((p, i) => `${i + 1}. ${p}`).join('\n')}`;
-                const modifiedCommand = command + imageNote;
+                const modifiedCommand = commandWithAttachments + imageNote;
 
                 // Update the command in args
                 const promptIndex = args.indexOf('--prompt');
-                if (promptIndex !== -1 && args[promptIndex + 1] === command) {
+                if (promptIndex !== -1 && args[promptIndex + 1] === commandWithAttachments) {
                     args[promptIndex + 1] = modifiedCommand;
                 } else if (promptIndex !== -1) {
                     // If we're using context, update the full prompt

@@ -554,9 +554,23 @@ async function queryClaudeSDK(command, options = {}, ws) {
     }
 
     const imageResult = await handleImages(command, options.images, options.cwd);
-    const finalCommand = imageResult.modifiedCommand;
+    let finalCommand = imageResult.modifiedCommand;
     tempImagePaths = imageResult.tempImagePaths;
     tempDir = imageResult.tempDir;
+
+    // Inject text/pdf attachments and binary path references into the prompt.
+    if (options.attachments && options.attachments.length > 0) {
+      const textParts = options.attachments
+        .filter((a) => a.kind === 'text' || a.kind === 'pdf')
+        .map((a) => `\n\n[File: ${a.name}]\n\`\`\`\n${a.text || ''}\n\`\`\``);
+      const pathParts = options.attachments
+        .filter((a) => a.kind === 'binary')
+        .map((a) => `\n\n[File reference: ${a.name} at project path ${a.path}]`);
+      const attachmentPrefix = [...textParts, ...pathParts].join('');
+      if (attachmentPrefix) {
+        finalCommand = (finalCommand || '') + attachmentPrefix;
+      }
+    }
 
     sdkOptions.hooks = {
       Notification: [{

@@ -4,16 +4,18 @@ import { useEffect, useState } from 'react';
 interface ImageAttachmentProps {
   file: File;
   onRemove: () => void;
-  uploadProgress?: number;
+  textPreview?: string;
+  pathPreview?: string;
   error?: string;
 }
 
 const isImageFile = (file: File): boolean =>
   file.type.startsWith('image/') || file.name.match(/\.(png|jpe?g|gif|webp|svg|bmp|ico)$/i) !== null;
 
-const ImageAttachment = ({ file, onRemove, uploadProgress, error }: ImageAttachmentProps) => {
+const ImageAttachment = ({ file, onRemove, textPreview, pathPreview, error }: ImageAttachmentProps) => {
   const [preview, setPreview] = useState<string | undefined>(undefined);
   const imageFile = isImageFile(file);
+  const hasPreview = Boolean(textPreview) || Boolean(pathPreview);
 
   useEffect(() => {
     if (!imageFile) {
@@ -31,21 +33,21 @@ const ImageAttachment = ({ file, onRemove, uploadProgress, error }: ImageAttachm
       ) : (
         <div
           className="flex h-20 w-20 flex-col items-center justify-center rounded border border-border bg-muted/50 p-2 text-center"
-          title={file.name}
+          title={pathPreview || textPreview || file.name}
         >
           <FileIcon className="h-8 w-8 text-muted-foreground" />
           <span className="mt-1 line-clamp-2 w-full text-[10px] text-muted-foreground">
             {file.name}
           </span>
-        </div>
-      )}
-      {uploadProgress !== undefined && uploadProgress < 100 && (
-        <div className="absolute inset-0 flex items-center justify-center bg-black/50">
-          <div className="text-xs text-white">{uploadProgress}%</div>
+          {hasPreview && (
+            <span className="mt-0.5 text-[9px] text-primary">
+              {textPreview ? 'text' : 'path'}
+            </span>
+          )}
         </div>
       )}
       {error && (
-        <div className="absolute inset-0 flex items-center justify-center bg-red-500/50">
+        <div className="absolute inset-0 flex items-center justify-center bg-red-500/50" title={error}>
           <svg className="h-6 w-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
           </svg>

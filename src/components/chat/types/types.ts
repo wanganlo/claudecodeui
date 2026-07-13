@@ -15,6 +15,18 @@ export interface ChatImage {
   mimeType?: string;
 }
 
+export type AttachmentKind = 'image' | 'text' | 'pdf' | 'binary';
+
+export interface ChatAttachment {
+  kind: AttachmentKind;
+  name: string;
+  mimeType?: string;
+  size: number;
+  data?: string; // image: base64 data URL
+  text?: string; // text/pdf: extracted content
+  path?: string; // binary: relative path in project .tmp/
+}
+
 export interface ToolResult {
   content?: unknown;
   isError?: boolean;

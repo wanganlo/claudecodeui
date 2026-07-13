@@ -15,7 +15,9 @@ import { authenticatedFetch } from '../../../utils/api';
 import type { MarkSessionProcessing } from '../../../hooks/useSessionProtection';
 import { grantClaudeToolPermission } from '../utils/chatPermissions';
 import { safeLocalStorage } from '../utils/chatStorage';
+import { classifyFile, getFileId } from '../utils/classifyFile';
 import type {
+  ChatAttachment,
   ChatMessage,
   PendingPermissionRequest,
   PermissionMode,
@@ -200,9 +202,9 @@ export function useChatComposerState({
     }
     return '';
   });
-  const [attachedImages, setAttachedImages] = useState<File[]>([]);
-  const [uploadingImages, setUploadingImages] = useState<Map<string, number>>(new Map());
-  const [imageErrors, setImageErrors] = useState<Map<string, string>>(new Map());
+  const [attachedFiles, setAttachedFiles] = useState<File[]>([]);
+  const [attachmentResults, setAttachmentResults] = useState<Map<string, ChatAttachment>>(new Map());
+  const [attachmentErrors, setAttachmentErrors] = useState<Map<string, string>>(new Map());
   const [isTextareaExpanded, setIsTextareaExpanded] = useState(false);
   const [commandModalPayload, setCommandModalPayload] = useState<CommandModalPayload | null>(null);
 
@@ -479,35 +481,100 @@ export function useChatComposerState({
     lastAutosizedInputRef.current = target.value;
   }, []);
 
-  const handleImageFiles = useCallback((files: File[]) => {
-    const validFiles = files.filter((file) => {
-      try {
+  function readFileAsText(file: File): Promise<string> {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        resolve(typeof reader.result === 'string' ? reader.result : '');
+      };
+      reader.onerror = () => {
+        reject(new Error(`Failed to read ${file.name}`));
+      };
+      reader.readAsText(file);
+    });
+  }
+
+  const handleAttachedFiles = useCallback(
+    async (files: File[]) => {
+      const newFiles: File[] = [];
+      const newResults = new Map(attachmentResults);
+      const newErrors = new Map(attachmentErrors);
+
+      for (const file of files) {
         if (!file || typeof file !== 'object') {
           console.warn('Invalid file object:', file);
-          return false;
+          continue;
         }
 
-        if (!file.size || file.size > 5 * 1024 * 1024) {
-          const fileName = file.name || 'Unknown file';
-          setImageErrors((previous) => {
-            const next = new Map(previous);
-            next.set(fileName, 'File too large (max 5MB)');
-            return next;
-          });
-          return false;
+        const fileId = getFileId(file);
+        const category = classifyFile(file);
+
+        let maxSize = 5 * 1024 * 1024; // default image limit
+        if (category === 'text') {
+          maxSize = 1024 * 1024; // 1MB
+        } else if (category === 'pdf') {
+          maxSize = 10 * 1024 * 1024; // 10MB
+        } else if (category === 'binary-other') {
+          maxSize = 50 * 1024 * 1024; // 50MB
         }
 
-        return true;
-      } catch (error) {
-        console.error('Error validating file:', error, file);
-        return false;
+        if (!file.size || file.size > maxSize) {
+          newErrors.set(fileId, `File too large (max ${Math.round(maxSize / 1024 / 1024)}MB)`);
+          continue;
+        }
+
+        if (category === 'binary-executable') {
+          newErrors.set(fileId, 'Compiled executables cannot be uploaded');
+          continue;
+        }
+
+        newFiles.push(file);
+
+        if (category === 'text') {
+          try {
+            const text = await readFileAsText(file);
+            newResults.set(fileId, {
+              kind: 'text',
+              name: file.name,
+              mimeType: file.type || 'text/plain',
+              size: file.size,
+              text,
+            });
+          } catch (error) {
+            const message = error instanceof Error ? error.message : 'Failed to read file';
+            newErrors.set(fileId, message);
+          }
+        }
       }
-    });
 
-    if (validFiles.length > 0) {
-      setAttachedImages((previous) => [...previous, ...validFiles].slice(0, 5));
-    }
-  }, []);
+      if (newFiles.length > 0) {
+        setAttachedFiles((previous) => [...previous, ...newFiles].slice(0, 10));
+      }
+      if (newResults.size > 0 || newErrors.size > 0) {
+        setAttachmentResults(newResults);
+        setAttachmentErrors(newErrors);
+      }
+    },
+    [attachmentResults, attachmentErrors],
+  );
+
+  const removeAttachedFile = useCallback(
+    (file: File) => {
+      const fileId = getFileId(file);
+      setAttachedFiles((previous) => previous.filter((f) => getFileId(f) !== fileId));
+      setAttachmentResults((previous) => {
+        const next = new Map(previous);
+        next.delete(fileId);
+        return next;
+      });
+      setAttachmentErrors((previous) => {
+        const next = new Map(previous);
+        next.delete(fileId);
+        return next;
+      });
+    },
+    [],
+  );
 
   const handlePaste = useCallback(
     (event: ClipboardEvent<HTMLTextAreaElement>) => {
@@ -519,24 +586,24 @@ export function useChatComposerState({
         }
         const file = item.getAsFile();
         if (file) {
-          handleImageFiles([file]);
+          handleAttachedFiles([file]);
         }
       });
 
       if (items.length === 0 && event.clipboardData.files.length > 0) {
         const files = Array.from(event.clipboardData.files);
         if (files.length > 0) {
-          handleImageFiles(files);
+          handleAttachedFiles(files);
         }
       }
     },
-    [handleImageFiles],
+    [handleAttachedFiles],
   );
 
   const { getRootProps, getInputProps, isDragActive, open } = useDropzone({
-    maxSize: 5 * 1024 * 1024,
-    maxFiles: 5,
-    onDrop: handleImageFiles,
+    maxSize: 50 * 1024 * 1024,
+    maxFiles: 10,
+    onDrop: handleAttachedFiles,
     noClick: true,
     noKeyboard: true,
   });
@@ -574,9 +641,9 @@ export function useChatComposerState({
           executeCommand(matchedCommand, isHelpAlias ? '/help' : commandInput);
           setInput('');
           inputValueRef.current = '';
-          setAttachedImages([]);
-          setUploadingImages(new Map());
-          setImageErrors(new Map());
+          setAttachedFiles([]);
+          setAttachmentResults(new Map());
+          setAttachmentErrors(new Map());
           resetCommandMenuState();
           setIsTextareaExpanded(false);
           if (textareaRef.current) {
@@ -588,10 +655,15 @@ export function useChatComposerState({
 
       const messageContent = currentInput;
 
+      const imageFiles = attachedFiles.filter((f) => classifyFile(f) === 'image');
+      const textFiles = attachedFiles.filter((f) => classifyFile(f) === 'text');
+      const pdfFiles = attachedFiles.filter((f) => classifyFile(f) === 'pdf');
+      const binaryFiles = attachedFiles.filter((f) => classifyFile(f) === 'binary-other');
+
       let uploadedImages: unknown[] = [];
-      if (attachedImages.length > 0) {
+      if (imageFiles.length > 0) {
         const formData = new FormData();
-        attachedImages.forEach((file) => {
+        imageFiles.forEach((file) => {
           formData.append('images', file);
         });
 
@@ -619,6 +691,103 @@ export function useChatComposerState({
           return;
         }
       }
+
+      // Build attachments from already-read text files.
+      const attachments: ChatAttachment[] = [];
+      for (const file of textFiles) {
+        const result = attachmentResults.get(getFileId(file));
+        if (result) {
+          attachments.push(result);
+        }
+      }
+
+      // Extract text from PDFs.
+      if (pdfFiles.length > 0) {
+        const formData = new FormData();
+        pdfFiles.forEach((file) => formData.append('files', file));
+        try {
+          const response = await authenticatedFetch(`/api/projects/${selectedProject.projectId}/extract-text`, {
+            method: 'POST',
+            headers: {},
+            body: formData,
+          });
+          if (!response.ok) {
+            throw new Error('Failed to extract PDF text');
+          }
+          const result = await response.json();
+          for (const file of result.files || []) {
+            attachments.push({
+              kind: 'pdf',
+              name: file.name,
+              mimeType: file.mimeType,
+              size: file.size,
+              text: file.text,
+            });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          console.error('PDF extraction failed:', error);
+          addMessage({
+            type: 'error',
+            content: `Failed to extract PDF text: ${message}`,
+            timestamp: new Date(),
+          });
+          return;
+        }
+      }
+
+      // Upload other binary files to project .tmp/attachments/.
+      if (binaryFiles.length > 0) {
+        const formData = new FormData();
+        binaryFiles.forEach((file) => formData.append('files', file));
+        try {
+          const response = await authenticatedFetch(`/api/projects/${selectedProject.projectId}/upload-attachments`, {
+            method: 'POST',
+            headers: {},
+            body: formData,
+          });
+          if (!response.ok) {
+            const body = await response.json().catch(() => ({ error: 'Upload failed' }));
+            throw new Error(body.error || 'Failed to upload attachments');
+          }
+          const result = await response.json();
+          for (const file of result.files || []) {
+            attachments.push({
+              kind: 'binary',
+              name: file.name,
+              mimeType: file.mimeType,
+              size: file.size,
+              path: file.path,
+            });
+          }
+          if (result.rejected?.length > 0) {
+            addMessage({
+              type: 'error',
+              content: `Rejected attachments: ${result.rejected.join(', ')}`,
+              timestamp: new Date(),
+            });
+          }
+        } catch (error) {
+          const message = error instanceof Error ? error.message : 'Unknown error';
+          console.error('Attachment upload failed:', error);
+          addMessage({
+            type: 'error',
+            content: `Failed to upload attachments: ${message}`,
+            timestamp: new Date(),
+          });
+          return;
+        }
+      }
+
+      // Convert uploaded images to attachment entries as well for display.
+      const imageAttachments: ChatAttachment[] = (uploadedImages as any[]).map((img) => ({
+        kind: 'image',
+        name: img.name,
+        mimeType: img.mimeType,
+        size: img.size,
+        data: img.data,
+      }));
+      const allAttachments = [...imageAttachments, ...attachments];
 
       const resolvedProjectPath = selectedProject.fullPath || selectedProject.path || '';
       const sessionSummary = getNotificationSessionSummary(selectedSession, currentInput);
@@ -672,7 +841,7 @@ export function useChatComposerState({
       const userMessage: ChatMessage = {
         type: 'user',
         content: currentInput,
-        images: uploadedImages as any,
+        attachments: allAttachments,
         timestamp: new Date(),
       };
 
@@ -743,15 +912,16 @@ export function useChatComposerState({
           skipPermissions: toolsSettings?.skipPermissions || false,
           sessionSummary,
           images: uploadedImages,
+          attachments,
         },
       });
 
       setInput('');
       inputValueRef.current = '';
       resetCommandMenuState();
-      setAttachedImages([]);
-      setUploadingImages(new Map());
-      setImageErrors(new Map());
+      setAttachedFiles([]);
+      setAttachmentResults(new Map());
+      setAttachmentErrors(new Map());
       setIsTextareaExpanded(false);
 
       if (textareaRef.current) {
@@ -762,7 +932,8 @@ export function useChatComposerState({
     },
     [
       selectedSession,
-      attachedImages,
+      attachedFiles,
+      attachmentResults,
       claudeModel,
       codexModel,
       currentProviderEffort,
@@ -1027,14 +1198,15 @@ export function useChatComposerState({
     selectedFileIndex,
     renderInputWithMentions,
     selectFile,
-    attachedImages,
-    setAttachedImages,
-    uploadingImages,
-    imageErrors,
+    attachedFiles,
+    setAttachedFiles,
+    attachmentResults,
+    attachmentErrors,
+    removeAttachedFile,
     getRootProps,
     getInputProps,
     isDragActive,
-    openImagePicker: open,
+    openFilePicker: open,
     handleSubmit,
     handleVoiceTranscript,
     handleInputChange,

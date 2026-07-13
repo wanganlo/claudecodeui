@@ -1,9 +1,10 @@
-import { memo, useMemo, useRef } from 'react';
+import { memo, useMemo, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { FileIcon } from 'lucide-react';
+import { ChevronDown, ChevronUp, FileIcon } from 'lucide-react';
 
 import SessionProviderLogo from '../../../llm-logo-provider/SessionProviderLogo';
 import type {
+  ChatAttachment,
   ChatMessage,
   ClaudePermissionSuggestion,
   PermissionGrantResult,
@@ -44,6 +45,53 @@ type InteractiveOption = {
 };
 
 const COPY_HIDDEN_TOOL_NAMES = new Set(['Bash', 'Edit', 'Write', 'ApplyPatch']);
+
+function AttachmentChip({ attachment }: { attachment: ChatAttachment }) {
+  const [expanded, setExpanded] = useState(false);
+  const isImage = attachment.kind === 'image';
+  const hasText = attachment.kind === 'text' || attachment.kind === 'pdf';
+
+  if (isImage && attachment.data) {
+    return (
+      <img
+        src={attachment.data}
+        alt={attachment.name}
+        className="h-auto max-w-full cursor-pointer rounded-lg transition-opacity hover:opacity-90"
+        onClick={() => window.open(attachment.data, '_blank')}
+      />
+    );
+  }
+
+  return (
+    <div className="rounded-lg border border-border bg-muted/50 p-2">
+      <button
+        type="button"
+        onClick={() => hasText && setExpanded((prev) => !prev)}
+        className={`flex w-full items-center gap-2 text-left ${hasText ? 'cursor-pointer' : 'cursor-default'}`}
+      >
+        <FileIcon className="h-5 w-5 flex-shrink-0 text-muted-foreground" />
+        <span className="flex-1 truncate text-xs text-foreground">{attachment.name}</span>
+        {hasText && (
+          expanded ? (
+            <ChevronUp className="h-4 w-4 text-muted-foreground" />
+          ) : (
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
+          )
+        )}
+      </button>
+      {expanded && hasText && attachment.text && (
+        <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap rounded bg-muted p-2 text-xs text-foreground">
+          {attachment.text}
+        </pre>
+      )}
+      {attachment.kind === 'binary' && attachment.path && (
+        <div className="mt-1 text-[10px] text-muted-foreground">
+          Path: {attachment.path}
+        </div>
+      )}
+    </div>
+  );
+}
 
 const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, showRawParameters, showThinking, selectedProject, provider }: MessageComponentProps) => {
   const { t } = useTranslation('chat');
@@ -91,9 +139,17 @@ const MessageComponent = memo(({ message, prevMessage, createDiff, onFileOpen, s
             <div dir="auto" className="whitespace-pre-wrap break-words font-serif text-sm">
               {message.content}
             </div>
-            {message.images && message.images.length > 0 && (
+            {((message.attachments as ChatAttachment[] | undefined)?.length ?? 0) > 0 && (
               <div className="mt-2 grid grid-cols-2 gap-2">
-                {message.images.map((img, idx) => {
+                {(message.attachments as ChatAttachment[]).map((attachment, idx) => (
+                  <AttachmentChip key={attachment.name || idx} attachment={attachment} />
+                ))}
+              </div>
+            )}
+            {!((message.attachments as ChatAttachment[] | undefined)?.length ?? 0) &&
+              ((message.images as { data: string; name: string; mimeType?: string }[] | undefined)?.length ?? 0) > 0 && (
+              <div className="mt-2 grid grid-cols-2 gap-2">
+                {(message.images as { data: string; name: string; mimeType?: string }[]).map((img, idx) => {
                   const isImage =
                     (typeof img.mimeType === 'string' && img.mimeType.startsWith('image/')) ||
                     (typeof img.data === 'string' && img.data.startsWith('data:image'));

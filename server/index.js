@@ -1154,6 +1154,196 @@ app.post('/api/projects/:projectId/upload-images', authenticateToken, async (req
     }
 });
 
+// Text extraction endpoint for PDFs used by the chat composer.
+app.post('/api/projects/:projectId/extract-text', authenticateToken, async (req, res) => {
+    try {
+        const multer = (await import('multer')).default;
+        const pdfParse = (await import('pdf-parse')).default;
+
+        const upload = multer({
+            storage: multer.memoryStorage(),
+            limits: {
+                fileSize: 10 * 1024 * 1024, // 10MB
+                files: 3,
+            },
+        });
+
+        upload.array('files', 3)(req, res, async (err) => {
+            if (err) {
+                console.error('PDF upload error:', err);
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({ error: 'PDF too large. Maximum size is 10MB.' });
+                }
+                if (err.code === 'LIMIT_FILE_COUNT') {
+                    return res.status(400).json({ error: 'Too many PDFs. Maximum is 3 files.' });
+                }
+                return res.status(400).json({ error: err.message });
+            }
+
+            if (!req.files || req.files.length === 0) {
+                return res.status(400).json({ error: 'No files provided' });
+            }
+
+            try {
+                const results = await Promise.all(
+                    req.files.map(async (file) => {
+                        const parsed = await pdfParse(file.buffer);
+                        return {
+                            name: file.originalname,
+                            mimeType: file.mimetype,
+                            size: file.size,
+                            text: parsed.text || '',
+                        };
+                    })
+                );
+
+                res.json({ files: results });
+            } catch (error) {
+                console.error('Error extracting PDF text:', error);
+                res.status(500).json({ error: 'Failed to extract PDF text' });
+            }
+        });
+    } catch (error) {
+        console.error('Error in PDF extraction endpoint:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
+const COMPILED_EXECUTABLE_EXTENSIONS = new Set([
+    'exe', 'dll', 'so', 'dylib', 'bin', 'msi', 'dmg', 'pkg', 'deb', 'rpm',
+    'app', 'out', 'o', 'obj', 'a', 'lib',
+]);
+
+function getFileExtension(name) {
+    if (!name) return '';
+    const parts = name.split('.');
+    return parts.length > 1 ? parts[parts.length - 1].toLowerCase() : '';
+}
+
+// Generic binary attachment endpoint for the chat composer.
+// Saves non-executable binary files under the project .tmp/attachments/ folder.
+app.post('/api/projects/:projectId/upload-attachments', authenticateToken, async (req, res) => {
+    try {
+        const multer = (await import('multer')).default;
+
+        const uploadMiddleware = multer({
+            storage: multer.diskStorage({
+                destination: (req, file, cb) => {
+                    cb(null, os.tmpdir());
+                },
+                filename: (req, file, cb) => {
+                    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+                    cb(null, `attachment-${uniqueSuffix}`);
+                },
+            }),
+            limits: {
+                fileSize: 50 * 1024 * 1024, // 50MB
+                files: 3,
+            },
+        });
+
+        uploadMiddleware.array('files', 3)(req, res, async (err) => {
+            if (err) {
+                console.error('Attachment upload error:', err);
+                if (err.code === 'LIMIT_FILE_SIZE') {
+                    return res.status(400).json({ error: 'Attachment too large. Maximum size is 50MB.' });
+                }
+                if (err.code === 'LIMIT_FILE_COUNT') {
+                    return res.status(400).json({ error: 'Too many attachments. Maximum is 3 files.' });
+                }
+                return res.status(500).json({ error: err.message });
+            }
+
+            if (!req.files || req.files.length === 0) {
+                return res.status(400).json({ error: 'No files provided' });
+            }
+
+            try {
+                const { projectId } = req.params;
+                const projectRoot = await projectsDb.getProjectPathById(
+                    projectId,
+                    req.user.id,
+                    req.user.scopeAll === true,
+                );
+                if (!projectRoot) {
+                    // Clean up temp files before responding
+                    for (const file of req.files) {
+                        await fsPromises.unlink(file.path).catch(() => {});
+                    }
+                    return res.status(404).json({ error: 'Project not found' });
+                }
+
+                const rejected = [];
+                const uploadedFiles = [];
+                const attachmentDir = path.join(projectRoot, '.tmp', 'attachments');
+                const sessionDir = path.join(attachmentDir, `${Date.now()}-${Math.round(Math.random() * 1E9)}`);
+
+                // Validate the .tmp/attachments path is under project root
+                const dirValidation = validatePathInProject(projectRoot, sessionDir);
+                if (!dirValidation.valid) {
+                    for (const file of req.files) {
+                        await fsPromises.unlink(file.path).catch(() => {});
+                    }
+                    return res.status(403).json({ error: dirValidation.error });
+                }
+
+                await fsPromises.mkdir(sessionDir, { recursive: true });
+
+                for (const file of req.files) {
+                    const ext = getFileExtension(file.originalname);
+                    if (COMPILED_EXECUTABLE_EXTENSIONS.has(ext)) {
+                        rejected.push(file.originalname);
+                        await fsPromises.unlink(file.path).catch(() => {});
+                        continue;
+                    }
+
+                    const filenameValidation = validateFilename(file.originalname);
+                    if (!filenameValidation.valid) {
+                        rejected.push(file.originalname);
+                        await fsPromises.unlink(file.path).catch(() => {});
+                        continue;
+                    }
+
+                    const destPath = path.join(sessionDir, file.originalname);
+                    const destValidation = validatePathInProject(projectRoot, destPath);
+                    if (!destValidation.valid) {
+                        rejected.push(file.originalname);
+                        await fsPromises.unlink(file.path).catch(() => {});
+                        continue;
+                    }
+
+                    await fsPromises.copyFile(file.path, destPath);
+                    await fsPromises.unlink(file.path);
+
+                    const relativePath = path.relative(projectRoot, destPath);
+                    uploadedFiles.push({
+                        name: file.originalname,
+                        mimeType: file.mimetype,
+                        size: file.size,
+                        path: relativePath,
+                    });
+                }
+
+                res.json({
+                    files: uploadedFiles,
+                    rejected,
+                });
+            } catch (error) {
+                console.error('Error uploading attachments:', error);
+                if (req.files) {
+                    for (const file of req.files) {
+                        await fsPromises.unlink(file.path).catch(() => {});
+                    }
+                }
+                res.status(500).json({ error: error.message });
+            }
+        });
+    } catch (error) {
+        console.error('Error in attachment upload endpoint:', error);
+        res.status(500).json({ error: 'Internal server error' });
+    }
+});
+
 // Get token usage for a specific session. `projectId` is the DB primary key;
 // the Claude branch below resolves it to an absolute path via the DB.
 app.get('/api/projects/:projectId/sessions/:sessionId/token-usage', authenticateToken, async (req, res) => {
