@@ -154,3 +154,73 @@ electron/*.tar.gz
 #
 # TypeScript build info
 tsconfig.tsbuildinfo
+# Auto-generated .gitignore
+# === OS generated files ===
+desktop.ini
+# === IDE / Editor ===
+*.iml
+*.sublime-project
+*.sublime-workspace
+# === Logs ===
+log/
+# === Runtime / Temp ===
+*.tmp
+*.temp
+.cache/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+# === Environment / Credentials ===
+.env.*
+*.env
+*.properties
+!*.template.properties
+!*.template
+*credential*
+*secret*
+*.pem
+*.key
+*.p12
+*.pfx
+*.crt
+*.der
+.ssh/
+.aws/
+.gcp/
+.azure/
+# === Claude / AI local state ===
+.claude/worktrees/
+.claude/.taskmaster/
+.claude-mem/
+.codex/
+.copilot/
+.superpowers/
+.handoff_history/
+.taskmaster/reports/
+.taskmaster/tasks/
+# === Backups / Outputs ===
+backup*/
+backups/
+output/
+outputs/
+download/
+downloads/
+# === Node.js ===
+.npm/
+.pnpm/
+.yarn/
+.yarnrc
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+# === Build outputs ===
+.next/
+.nuxt/
+.output/
+.public/
+.cache/
+# === Project-specific ===
+# Local backups
+backups/
+# Claude worktrees
+.claude/worktrees/
