@@ -185,6 +185,21 @@ export const requireAdmin: RequestHandler = (req, res, next) => {
 export const WORKSPACES_ROOT = process.env.WORKSPACES_ROOT || os.homedir();
 
 /**
+ * The user's home directory is never a meaningful project workspace in the UI.
+ * Sessions discovered with this path are indexed for completeness but should
+ * not appear as a project row or search bucket.
+ */
+export const HOME_PROJECT_PATH = os.homedir();
+
+export function isHiddenProjectPath(inputPath: string): boolean {
+  if (!inputPath) {
+    return false;
+  }
+
+  return normalizeProjectPath(inputPath) === HOME_PROJECT_PATH;
+}
+
+/**
  * System-critical paths that must never be used as workspace roots.
  *
  * The validation helper blocks these values directly and also blocks paths

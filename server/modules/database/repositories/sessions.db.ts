@@ -75,7 +75,8 @@ export const sessionsDb = {
     customName?: string,
     createdAt?: string,
     updatedAt?: string,
-    jsonlPath?: string | null
+    jsonlPath?: string | null,
+    userId: number = 1
   ): string {
     const db = getConnection();
     const createdAtValue = normalizeTimestamp(createdAt);
@@ -84,7 +85,7 @@ export const sessionsDb = {
 
     // First, ensure the project path is recorded in the projects table,
     // since it's a foreign key in the sessions table.
-    projectsDb.createProjectPath(normalizedProjectPath, null, 1);
+    projectsDb.createProjectPath(normalizedProjectPath, null, userId);
 
     const existing = db
       .prepare(
@@ -121,7 +122,7 @@ export const sessionsDb = {
     // covers legacy rows that predate the provider_session_id mapping.
     db.prepare(
       `INSERT INTO sessions (session_id, provider, provider_session_id, custom_name, project_path, jsonl_path, user_id, isArchived, created_at, updated_at)
-       VALUES (?, ?, ?, ?, ?, ?, 1, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
+       VALUES (?, ?, ?, ?, ?, ?, ?, 0, COALESCE(?, CURRENT_TIMESTAMP), COALESCE(?, CURRENT_TIMESTAMP))
        ON CONFLICT(session_id) DO UPDATE SET
          provider = excluded.provider,
          provider_session_id = excluded.provider_session_id,
@@ -137,6 +138,7 @@ export const sessionsDb = {
       customName ?? null,
       normalizedProjectPath,
       jsonlPath ?? null,
+      userId,
       createdAtValue,
       updatedAtValue
     );

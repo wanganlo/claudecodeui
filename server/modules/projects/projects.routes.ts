@@ -1,9 +1,10 @@
 import express from 'express';
+import path from 'node:path';
 
 import { createProject, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
-import { AppError, asyncHandler, createApiSuccessResponse, requireAdmin, requireUserId } from '@/shared/utils.js';
+import { AppError, asyncHandler, createApiSuccessResponse, requireAdmin, requireUserId, WORKSPACES_ROOT } from '@/shared/utils.js';
 import { getArchivedProjectsWithSessions, getProjectSessionsPage, getProjectsWithSessions } from '@/modules/projects/services/projects-with-sessions-fetch.service.js';
 import { deleteOrArchiveProject, restoreArchivedProject } from '@/modules/projects/services/project-delete.service.js';
 import { applyLegacyStarredProjectIds, toggleProjectStar } from '@/modules/projects/services/project-star.service.js';
@@ -144,6 +145,29 @@ router.post(
         projectCreationResult.outcome === 'reactivated_archived'
           ? 'Archived project path reused successfully'
           : 'Project created successfully',
+    });
+  }),
+);
+
+router.post(
+  '/ensure-default-chat',
+  asyncHandler(async (req, res) => {
+    const userId = requireUserId(req) as number;
+    const defaultProjectPath = path.join(WORKSPACES_ROOT, 'claude-ui-default-chats', `user-${userId}`);
+
+    const projectCreationResult = await createProject({
+      userId,
+      projectPath: defaultProjectPath,
+      customName: 'Default Chat',
+    });
+
+    res.json({
+      success: true,
+      project: projectCreationResult.project,
+      message:
+        projectCreationResult.outcome === 'reactivated_archived'
+          ? 'Default chat project reused successfully'
+          : 'Default chat project created successfully',
     });
   }),
 );

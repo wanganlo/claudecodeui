@@ -94,7 +94,8 @@ export class GeminiSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        1
       );
       processed += 1;
     }

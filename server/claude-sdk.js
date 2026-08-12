@@ -157,7 +157,7 @@ function matchesToolPermission(entry, toolName, input) {
 }
 
 function mapCliOptionsToSDK(options = {}) {
-  const { sessionId, cwd, toolsSettings, permissionMode, effort } = options;
+  const { sessionId, cwd, toolsSettings, permissionMode, effort, resume, forkSession } = options;
 
   const sdkOptions = {};
 
@@ -225,7 +225,11 @@ function mapCliOptionsToSDK(options = {}) {
 
   sdkOptions.settingSources = ['project', 'user', 'local'];
 
-  if (sessionId) {
+  if (forkSession && sessionId) {
+    // Fork an existing session into a new provider-native id.
+    sdkOptions.sessionId = sessionId;
+    sdkOptions.resume = resume ?? sessionId;
+  } else if (sessionId) {
     sdkOptions.resume = sessionId;
   }
 

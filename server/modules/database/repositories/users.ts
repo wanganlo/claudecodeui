@@ -99,6 +99,47 @@ export const userDb = {
       .get(userId) as UserPublicRow | undefined;
   },
 
+  /** Updates editable user fields. */
+  updateUser(
+    userId: number,
+    fields: { username?: string; isAdmin?: boolean; isActive?: boolean }
+  ): void {
+    const db = getConnection();
+    const sets: string[] = [];
+    const values: (string | number)[] = [];
+
+    if (fields.username !== undefined) {
+      sets.push('username = ?');
+      values.push(fields.username);
+    }
+    if (fields.isAdmin !== undefined) {
+      sets.push('is_admin = ?');
+      values.push(fields.isAdmin ? 1 : 0);
+    }
+    if (fields.isActive !== undefined) {
+      sets.push('is_active = ?');
+      values.push(fields.isActive ? 1 : 0);
+    }
+
+    if (sets.length === 0) {
+      return;
+    }
+
+    db.prepare(`UPDATE users SET ${sets.join(', ')} WHERE id = ?`).run(...values, userId);
+  },
+
+  /** Updates a user's password hash. */
+  updatePassword(userId: number, passwordHash: string): void {
+    const db = getConnection();
+    db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, userId);
+  },
+
+  /** Deletes a user record. */
+  deleteUser(userId: number): void {
+    const db = getConnection();
+    db.prepare('DELETE FROM users WHERE id = ?').run(userId);
+  },
+
   /** Returns the first active user. Used for single-user mode lookups. */
   getFirstUser(): UserPublicRow | undefined {
     const db = getConnection();

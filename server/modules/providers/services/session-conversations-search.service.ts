@@ -6,6 +6,7 @@ import { spawn } from 'cross-spawn';
 import { rgPath } from '@vscode/ripgrep';
 
 import { projectsDb, sessionsDb } from '@/modules/database/index.js';
+import { isHiddenProjectPath } from '@/shared/utils.js';
 
 type AnyRecord = Record<string, any>;
 type SearchableProvider = 'claude' | 'codex' | 'gemini';
@@ -500,6 +501,10 @@ function normalizeSearchableSessions(rows: SessionRepositoryRow[], userId: numbe
      * does not re-query the same project row for every session in that folder.
      */
     const normalizedProjectPath = typeof row.project_path === 'string' ? row.project_path.trim() : '';
+    if (normalizedProjectPath && isHiddenProjectPath(normalizedProjectPath)) {
+      continue;
+    }
+
     if (normalizedProjectPath) {
       if (!projectArchiveStateByPath.has(normalizedProjectPath)) {
         const projectRow = projectsDb.getProjectPath(normalizedProjectPath, userId);

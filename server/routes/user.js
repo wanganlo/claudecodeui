@@ -123,13 +123,11 @@ router.post('/git-config', authenticateToken, async (req, res) => {
 
     userDb.updateGitConfig(userId, gitName, gitEmail);
 
-    try {
-      await spawnAsync('git', ['config', '--global', 'user.name', gitName]);
-      await spawnAsync('git', ['config', '--global', 'user.email', gitEmail]);
-      console.log(`Applied git config globally: ${gitName} <${gitEmail}>`);
-    } catch (gitError) {
-      console.error('Error applying git config:', gitError);
-    }
+    // [2026-07-15 CC小神 patch] 移除 git config --global 写入:
+    // claude-ui 多用户共享 admin 的全局 ~/.gitconfig, --global 会让各用户互相覆盖
+    // (曾导致 ~/.gitconfig 被覆盖成 YFF 身份, 间接引发 home-git-repo 事故)。
+    // git 身份只存 DB(userDb.updateGitConfig), 不污染全局;
+    // 提交时如需身份用 -c user.name/user.email 临时注入。
 
     res.json({
       success: true,

@@ -1,6 +1,7 @@
 import { Settings, ArrowUpCircle, Bug, AlertTriangle } from 'lucide-react';
 import type { TFunction } from 'i18next';
 import { IS_PLATFORM } from '../../../../constants/config';
+import { useIsAdmin } from '../../../auth/context/AuthContext';
 import type { ReleaseInfo } from '../../../../types/sharedTypes';
 
 const GITHUB_ISSUES_URL = 'https://github.com/siteboon/claudecodeui/issues/new';
@@ -37,6 +38,12 @@ export default function SidebarFooter({
   onShowSettings,
   t,
 }: SidebarFooterProps) {
+  const isAdmin = useIsAdmin();
+
+  if (!isAdmin) {
+    return null;
+  }
+
   return (
     <div className="flex-shrink-0" style={{ paddingBottom: 'env(safe-area-inset-bottom, 0)' }}>
       {/* Restart-required banner: the running server version differs from the

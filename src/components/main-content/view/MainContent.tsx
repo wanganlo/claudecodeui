@@ -21,6 +21,7 @@ import { TaskMasterPanel } from '../../task-master';
 
 import MainContentHeader from './subcomponents/MainContentHeader';
 import MainContentStateView from './subcomponents/MainContentStateView';
+import LandingChatView from './subcomponents/LandingChatView';
 import ErrorBoundary from './ErrorBoundary';
 
 type TaskMasterContextValue = {
@@ -61,11 +62,14 @@ function MainContent({
   const { tasksEnabled, isTaskMasterInstalled } = useTasksSettings() as TasksSettingsContextValue;
   const [browserUseEnabled, setBrowserUseEnabled] = useState(false);
 
-  const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled);
-  const shouldShowBrowserTab = browserUseEnabled;
+  const isAdmin = useIsAdmin();
+  const shouldShowTasksTab = Boolean(tasksEnabled && isTaskMasterInstalled) && isAdmin;
+  const shouldShowBrowserTab = browserUseEnabled && isAdmin;
   // Shell / Files / Source Control tabs expose host filesystem + interactive
   // shell + git — restrict to admins. Backend enforces the same gate.
-  const shouldShowPowerUserTabs = useIsAdmin();
+  const shouldShowPowerUserTabs = isAdmin;
+  // Plugin tabs (e.g. Claude Watch) are admin-only.
+  const shouldShowPlugins = isAdmin;
 
   const {
     editingFile,
@@ -125,13 +129,18 @@ function MainContent({
     }
   }, [shouldShowBrowserTab, activeTab, setActiveTab]);
 
-  // Bounce non-admins off the power-user tabs (defense-in-depth alongside the
-  // tab switcher hiding them). Covers deep-links and programmatic setActiveTab.
   useEffect(() => {
     if (!shouldShowPowerUserTabs && (activeTab === 'shell' || activeTab === 'files' || activeTab === 'git')) {
       setActiveTab('chat');
     }
   }, [shouldShowPowerUserTabs, activeTab, setActiveTab]);
+
+  // Plugin tabs are rendered by the plugin system and are admin-only.
+  useEffect(() => {
+    if (!shouldShowPlugins && activeTab.startsWith('plugin:')) {
+      setActiveTab('chat');
+    }
+  }, [shouldShowPlugins, activeTab, setActiveTab]);
 
   usePaletteOpsRegister({
     openFile: (filePath: string) => {
@@ -154,7 +163,10 @@ function MainContent({
   }
 
   if (!selectedProject) {
-    return <MainContentStateView mode="empty" isMobile={isMobile} onMenuClick={onMenuClick} />;
+    if (isAdmin) {
+      return <MainContentStateView mode="empty" isMobile={isMobile} onMenuClick={onMenuClick} />;
+    }
+    return <LandingChatView isMobile={isMobile} sendMessage={sendMessage} />;
   }
 
   return (
@@ -167,6 +179,7 @@ function MainContent({
         shouldShowTasksTab={shouldShowTasksTab}
         shouldShowBrowserTab={shouldShowBrowserTab}
         shouldShowPowerUserTabs={shouldShowPowerUserTabs}
+        shouldShowPlugins={shouldShowPlugins}
         isMobile={isMobile}
         onMenuClick={onMenuClick}
       />

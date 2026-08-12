@@ -1,4 +1,7 @@
 import type { WebSocket } from 'ws';
+import { createReadStream } from 'node:fs';
+import readline from 'node:readline';
+import crypto from 'node:crypto';
 
 import { sessionsDb } from '@/modules/database/index.js';
 import { chatRunRegistry } from '@/modules/websocket/services/chat-run-registry.service.js';
@@ -9,6 +12,50 @@ import type {
   LLMProvider,
 } from '@/shared/types.js';
 import { assertOwnsSession, parseIncomingJsonObject, resolveWsUserId } from '@/shared/utils.js';
+
+/**
+ * Peeks at the first line of a Claude JSONL transcript to determine whether the
+ * on-disk session is a background agent (sessionKind: "bg"). Only Claude writes
+ * this field today; other providers are treated as foreground sessions.
+ */
+function readSessionKindFromJsonl(jsonlPath: string | null | undefined): Promise<string | null> {
+  return new Promise((resolve) => {
+    if (!jsonlPath) {
+      resolve(null);
+      return;
+    }
+
+    const stream = createReadStream(jsonlPath, { encoding: 'utf8' });
+    const reader = readline.createInterface({ input: stream, crlfDelay: Infinity });
+
+    let settled = false;
+    reader.on('line', (line) => {
+      if (settled) return;
+      const trimmed = line.trim();
+      if (!trimmed) return;
+
+      try {
+        const parsed = JSON.parse(trimmed) as AnyRecord;
+        if (typeof parsed.sessionKind === 'string') {
+          settled = true;
+          reader.close();
+          stream.destroy();
+          resolve(parsed.sessionKind);
+        }
+      } catch {
+        // Malformed JSONL line; keep scanning.
+      }
+    });
+
+    reader.on('close', () => {
+      if (!settled) resolve(null);
+    });
+
+    stream.on('error', () => {
+      if (!settled) resolve(null);
+    });
+  });
+}
 
 /**
  * One provider runtime entry point. All five runtimes share this signature,
@@ -180,11 +227,33 @@ async function handleChatSend(
   // gateway writer captures and maps back to the app session id.
   const runtimeOptions: AnyRecord = {
     ...clientOptions,
-    sessionId: session.provider_session_id ?? undefined,
-    resume: Boolean(session.provider_session_id),
+    // The SDK's `resume` option is the provider-native session id (string).
+    // Passing `sessionId` together with `resume` requires `forkSession: true`,
+    // and passing `resume: true` (boolean) causes the CLI to abort. Only set
+    // resume when we already know the provider session id.
+    resume: session.provider_session_id ?? undefined,
     cwd: clientOptions.cwd ?? session.project_path ?? undefined,
     projectPath: session.project_path ?? clientOptions.projectPath,
   };
+
+  // Claude background-agent sessions cannot be resumed directly; the SDK
+  // requires `forkSession: true` together with a brand-new session id. Fork
+  // once here and let the gateway writer persist the new provider id when it
+  // is announced by the runtime.
+  if (provider === 'claude' && session.provider_session_id && session.jsonl_path) {
+    try {
+      const sessionKind = await readSessionKindFromJsonl(session.jsonl_path);
+      if (sessionKind === 'bg') {
+        const forkedProviderSessionId = crypto.randomUUID();
+        runtimeOptions.resume = session.provider_session_id;
+        runtimeOptions.sessionId = forkedProviderSessionId;
+        runtimeOptions.forkSession = true;
+      }
+    } catch {
+      // If we cannot read the transcript, fall back to the normal resume path
+      // and let the SDK report any session-kind error it may surface.
+    }
+  }
 
   try {
     await spawnFn(command, runtimeOptions, run.writer);

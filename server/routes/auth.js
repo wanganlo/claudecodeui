@@ -133,6 +133,104 @@ router.post('/users', authenticateToken, requireAdmin, async (req, res) => {
   }
 });
 
+// Update an existing user (admin only)
+router.put('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const userId = Number.parseInt(req.params.id, 10);
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    const targetUser = userDb.getUserById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    const { username, isAdmin, isActive, password } = req.body;
+    const updates = {};
+
+    if (username !== undefined) {
+      if (typeof username !== 'string' || username.length < 3) {
+        return res.status(400).json({ error: 'Username must be at least 3 characters' });
+      }
+      if (username !== targetUser.username) {
+        const existingUser = userDb.getUserByUsername(username);
+        if (existingUser) {
+          return res.status(409).json({ error: 'Username already exists' });
+        }
+        updates.username = username;
+      }
+    }
+
+    if (isAdmin !== undefined) {
+      if (typeof isAdmin !== 'boolean') {
+        return res.status(400).json({ error: 'isAdmin must be a boolean' });
+      }
+      // Prevent removing admin status from yourself to avoid lockout.
+      if (userId === req.user.id && !isAdmin) {
+        return res.status(403).json({ error: 'You cannot remove your own admin privileges' });
+      }
+      updates.isAdmin = isAdmin;
+    }
+
+    if (isActive !== undefined) {
+      if (typeof isActive !== 'boolean') {
+        return res.status(400).json({ error: 'isActive must be a boolean' });
+      }
+      // Prevent deactivating yourself.
+      if (userId === req.user.id && !isActive) {
+        return res.status(403).json({ error: 'You cannot deactivate your own account' });
+      }
+      updates.isActive = isActive;
+    }
+
+    userDb.updateUser(userId, updates);
+
+    if (password !== undefined && password !== '') {
+      if (typeof password !== 'string' || password.length < 6) {
+        return res.status(400).json({ error: 'Password must be at least 6 characters' });
+      }
+      const passwordHash = await bcrypt.hash(password, 12);
+      userDb.updatePassword(userId, passwordHash);
+    }
+
+    const updatedUser = userDb.getUserById(userId);
+    res.json({ success: true, user: updatedUser });
+  } catch (error) {
+    console.error('Update user error:', error);
+    if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+      res.status(409).json({ error: 'Username already exists' });
+    } else {
+      res.status(500).json({ error: 'Internal server error' });
+    }
+  }
+});
+
+// Delete a user (admin only)
+router.delete('/users/:id', authenticateToken, requireAdmin, async (req, res) => {
+  try {
+    const userId = Number.parseInt(req.params.id, 10);
+    if (Number.isNaN(userId)) {
+      return res.status(400).json({ error: 'Invalid user id' });
+    }
+
+    if (userId === req.user.id) {
+      return res.status(403).json({ error: 'You cannot delete your own account' });
+    }
+
+    const targetUser = userDb.getUserById(userId);
+    if (!targetUser) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+
+    userDb.deleteUser(userId);
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Delete user error:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
 // User login
 router.post('/login', async (req, res) => {
   try {

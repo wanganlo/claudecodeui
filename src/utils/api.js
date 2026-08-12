@@ -47,6 +47,20 @@ export const api = {
     }),
     user: () => authenticatedFetch('/api/auth/user'),
     logout: () => authenticatedFetch('/api/auth/logout', { method: 'POST' }),
+    users: {
+      list: () => authenticatedFetch('/api/auth/users'),
+      create: (username, password) => authenticatedFetch('/api/auth/users', {
+        method: 'POST',
+        body: JSON.stringify({ username, password }),
+      }),
+      update: (userId, fields) => authenticatedFetch(`/api/auth/users/${encodeURIComponent(userId)}`, {
+        method: 'PUT',
+        body: JSON.stringify(fields),
+      }),
+      delete: (userId) => authenticatedFetch(`/api/auth/users/${encodeURIComponent(userId)}`, {
+        method: 'DELETE',
+      }),
+    },
   },
 
   // Protected endpoints

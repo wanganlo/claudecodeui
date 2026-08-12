@@ -16,7 +16,10 @@ try {
     const trimmedLine = line.trim();
     if (trimmedLine && !trimmedLine.startsWith('#')) {
       const [key, ...valueParts] = trimmedLine.split('=');
-      if (key && valueParts.length > 0 && !process.env[key]) {
+      if (key && valueParts.length > 0) {
+        // .env is the project-level source of truth; allow it to override
+        // inherited shell/system values (e.g. ANTHROPIC_API_KEY) so the
+        // backend always uses the credentials pinned for this deployment.
         process.env[key] = valueParts.join('=').trim();
       }
     }

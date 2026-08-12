@@ -1,9 +1,10 @@
-import { useEffect, useRef } from 'react';
-import { Archive, Check, Edit2, Loader2, Trash2, X } from 'lucide-react';
+import { useEffect, useRef, useState } from 'react';
+import { Archive, Check, Copy, Edit2, Loader2, Trash2, X } from 'lucide-react';
 import type { TFunction } from 'i18next';
 
 import { Badge, Tooltip, buttonVariants } from '../../../../shared/view/ui';
 import { cn } from '../../../../lib/utils';
+import { copyTextToClipboard } from '../../../../utils/clipboard';
 import { useIsAdmin } from '../../../auth/context/AuthContext';
 import type { Project, ProjectSession, LLMProvider } from '../../../../types/app';
 import type { SessionWithProvider } from '../../types/types';
@@ -88,6 +89,19 @@ export default function SidebarSessionItem({
   const compactSessionAge = formatCompactSessionAge(sessionView.sessionTime, currentTime);
   const editingContainerRef = useRef<HTMLDivElement>(null);
   const showRecentIndicator = !isProcessing && sessionView.isActive;
+
+  // Session ID display + copy: surfaces the Claude Code session UUID
+  // (= ~/.claude/projects/<hash>/<uuid>.jsonl filename) next to each session,
+  // so if a session gets stuck the user can copy its ID and have a fresh
+  // session resume/locate it.
+  const [copiedSessionId, setCopiedSessionId] = useState(false);
+  const handleCopySessionId = async () => {
+    const ok = await copyTextToClipboard(session.id);
+    if (ok) {
+      setCopiedSessionId(true);
+      window.setTimeout(() => setCopiedSessionId(false), 1400);
+    }
+  };
 
   // The rename panel sits inside a group-hover opacity wrapper, so leaving the row
   // would visually hide it. While editing, dismiss only when the user clicks outside
@@ -179,12 +193,24 @@ export default function SidebarSessionItem({
                   <span className="ml-auto flex-shrink-0 text-[11px] text-muted-foreground">{compactSessionAge}</span>
                 )}
               </div>
-              <div className="mt-0.5 flex items-center">
+              <div className="mt-0.5 flex items-center gap-1">
                 {sessionView.messageCount > 0 && (
                   <Badge variant="secondary" className="px-1 py-0 text-xs">
                     {sessionView.messageCount}
                   </Badge>
                 )}
+                <span className="truncate font-mono text-[10px] leading-none text-muted-foreground/60">{session.id.slice(0, 8)}</span>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    void handleCopySessionId();
+                  }}
+                  className="flex h-4 w-4 items-center justify-center text-muted-foreground/50 active:scale-95"
+                  title={copiedSessionId ? t('common.copied', 'Copied') : t('tooltips.copySessionId', 'Copy session ID')}
+                >
+                  {copiedSessionId ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                </button>
               </div>
             </div>
 
@@ -272,8 +298,21 @@ export default function SidebarSessionItem({
                   </span>
                 )}
               </div>
-              <div className="mt-0.5 flex items-center">
+              <div className="mt-0.5 flex items-center gap-1">
                 {sessionView.messageCount > 0 && <Badge variant="secondary" className="px-1 py-0 text-xs">{sessionView.messageCount}</Badge>}
+                <span className="truncate font-mono text-[10px] leading-none text-muted-foreground/60">{session.id.slice(0, 8)}</span>
+                <button
+                  type="button"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    event.preventDefault();
+                    void handleCopySessionId();
+                  }}
+                  className="flex h-3.5 w-3.5 items-center justify-center text-muted-foreground/40 hover:text-foreground"
+                  title={copiedSessionId ? t('common.copied', 'Copied') : t('tooltips.copySessionId', 'Copy session ID')}
+                >
+                  {copiedSessionId ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                </button>
               </div>
             </div>
           </div>

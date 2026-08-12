@@ -11,7 +11,7 @@ import type {
   LLMProvider,
   NormalizedMessage,
 } from '@/shared/types.js';
-import { AppError } from '@/shared/utils.js';
+import { AppError, isHiddenProjectPath } from '@/shared/utils.js';
 
 type CreateAppSessionResult = {
   sessionId: string;
@@ -197,30 +197,35 @@ export const sessionsService = {
     const archivedSessions = sessionsDb.getArchivedSessions(userId, scopeAll);
     const projectCache = new Map<string, ReturnType<typeof projectsDb.getProjectPath>>();
 
-    return archivedSessions.map((session) => {
-      const projectPath = session.project_path?.trim() ? session.project_path : null;
-      let project = null;
+    return archivedSessions
+      .filter((session) => {
+        const projectPath = session.project_path?.trim() ? session.project_path : null;
+        return projectPath ? !isHiddenProjectPath(projectPath) : true;
+      })
+      .map((session) => {
+        const projectPath = session.project_path?.trim() ? session.project_path : null;
+        let project = null;
 
-      if (projectPath) {
-        if (!projectCache.has(projectPath)) {
-          projectCache.set(projectPath, projectsDb.getProjectPath(projectPath, userId, scopeAll));
+        if (projectPath) {
+          if (!projectCache.has(projectPath)) {
+            projectCache.set(projectPath, projectsDb.getProjectPath(projectPath, userId, scopeAll));
+          }
+          project = projectCache.get(projectPath) ?? null;
         }
-        project = projectCache.get(projectPath) ?? null;
-      }
 
-      return {
-        sessionId: session.session_id,
-        provider: session.provider as LLMProvider,
-        projectId: project?.project_id ?? null,
-        projectPath,
-        projectDisplayName: resolveProjectDisplayName(projectPath, project?.custom_project_name),
-        sessionTitle: session.custom_name?.trim() || session.session_id,
-        createdAt: session.created_at ?? null,
-        updatedAt: session.updated_at ?? null,
-        lastActivity: session.updated_at ?? session.created_at ?? null,
-        isProjectArchived: Boolean(project?.isArchived),
-      };
-    });
+        return {
+          sessionId: session.session_id,
+          provider: session.provider as LLMProvider,
+          projectId: project?.project_id ?? null,
+          projectPath,
+          projectDisplayName: resolveProjectDisplayName(projectPath, project?.custom_project_name),
+          sessionTitle: session.custom_name?.trim() || session.session_id,
+          createdAt: session.created_at ?? null,
+          updatedAt: session.updated_at ?? null,
+          lastActivity: session.updated_at ?? session.created_at ?? null,
+          isProjectArchived: Boolean(project?.isArchived),
+        };
+      });
   },
 
   /**

@@ -13,6 +13,7 @@ import {
 } from 'lucide-react';
 import { cn } from '../../../lib/utils';
 import { useTaskMaster } from '../context/TaskMasterContext';
+import { useIsAdmin } from '../../auth/context/AuthContext';
 import TaskDetailModal from './TaskDetailModal';
 import TaskMasterSetupModal from './modals/TaskMasterSetupModal';
 
@@ -57,10 +58,16 @@ export default function NextTaskBanner({ onShowAllTasks = null, onStartTask = nu
     refreshProjects,
     setCurrentProject,
   } = useTaskMaster();
+  const isAdmin = useIsAdmin();
 
   const [showTaskDetail, setShowTaskDetail] = useState(false);
   const [showSetupModal, setShowSetupModal] = useState(false);
   const [showSetupDetails, setShowSetupDetails] = useState(false);
+
+  // TaskMaster is a power-user feature — hide the banner entirely for regular users.
+  if (!isAdmin) {
+    return null;
+  }
 
   if (!currentProject || isLoadingTasks) {
     return null;

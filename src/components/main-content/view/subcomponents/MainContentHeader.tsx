@@ -14,6 +14,7 @@ export default function MainContentHeader({
   shouldShowTasksTab,
   shouldShowBrowserTab,
   shouldShowPowerUserTabs,
+  shouldShowPlugins,
   isMobile,
   onMenuClick,
 }: MainContentHeaderProps) {
@@ -72,6 +73,7 @@ export default function MainContentHeader({
               shouldShowTasksTab={shouldShowTasksTab}
               shouldShowBrowserTab={shouldShowBrowserTab}
               shouldShowPowerUserTabs={shouldShowPowerUserTabs}
+              shouldShowPlugins={shouldShowPlugins}
             />
           </div>
           {canScrollRight && (

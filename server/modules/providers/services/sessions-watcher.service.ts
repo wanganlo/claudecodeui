@@ -9,6 +9,7 @@ import { sessionSynchronizerService } from '@/modules/providers/services/session
 import { WS_OPEN_STATE, connectedClients } from '@/modules/websocket/index.js';
 import type { LLMProvider } from '@/shared/types.js';
 import { generateDisplayName } from '@/modules/projects/index.js';
+import { isHiddenProjectPath } from '@/shared/utils.js';
 
 type WatcherEventType = 'add' | 'change';
 
@@ -153,6 +154,10 @@ async function buildSessionUpsertedEvent(updatedProviderSessionId: string): Prom
   }
 
   const projectPath = row.project_path;
+  if (projectPath && isHiddenProjectPath(projectPath)) {
+    return null;
+  }
+
   const project = projectPath ? projectsDb.getProjectPath(projectPath, row.user_id) : null;
   const displayName = project?.custom_project_name?.trim()
     ? project.custom_project_name

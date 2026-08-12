@@ -13,6 +13,7 @@ type MainContentTabSwitcherProps = {
   shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
   shouldShowPowerUserTabs: boolean;
+  shouldShowPlugins: boolean;
 };
 
 type BuiltInTab = {
@@ -61,6 +62,7 @@ export default function MainContentTabSwitcher({
   shouldShowTasksTab,
   shouldShowBrowserTab,
   shouldShowPowerUserTabs,
+  shouldShowPlugins,
 }: MainContentTabSwitcherProps) {
   const { t } = useTranslation();
   const { plugins } = usePlugins();
@@ -72,15 +74,17 @@ export default function MainContentTabSwitcher({
     ...(shouldShowTasksTab ? [TASKS_TAB] : []),
   ];
 
-  const pluginTabs: PluginTab[] = plugins
-    .filter((p) => p.enabled)
-    .map((p) => ({
-      kind: 'plugin',
-      id: `plugin:${p.name}` as AppTab,
-      label: p.displayName,
-      pluginName: p.name,
-      iconFile: p.icon,
-    }));
+  const pluginTabs: PluginTab[] = shouldShowPlugins
+    ? plugins
+      .filter((p) => p.enabled)
+      .map((p) => ({
+        kind: 'plugin',
+        id: `plugin:${p.name}` as AppTab,
+        label: p.displayName,
+        pluginName: p.name,
+        iconFile: p.icon,
+      }))
+    : [];
 
   const tabs: TabDefinition[] = [...builtInTabs, ...pluginTabs];
 

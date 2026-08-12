@@ -70,7 +70,8 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
         parsed.sessionName,
         timestamps.createdAt,
         timestamps.updatedAt,
-        filePath
+        filePath,
+        1
       );
       processed += 1;
     }
@@ -103,7 +104,8 @@ export class ClaudeSessionSynchronizer implements IProviderSessionSynchronizer {
       parsed.sessionName,
       timestamps.createdAt,
       timestamps.updatedAt,
-      filePath
+      filePath,
+      1
     );
   }
 

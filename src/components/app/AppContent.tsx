@@ -10,6 +10,7 @@ import { PaletteOpsProvider, usePaletteOpsRegister } from '../../contexts/Palett
 import { useDeviceSettings } from '../../hooks/useDeviceSettings';
 import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
+import { useIsAdmin } from '../auth/context/AuthContext';
 import { api } from '../../utils/api';
 
 type RunningSessionApiItem = {
@@ -51,6 +52,7 @@ function AppContentInner() {
   const { sessionId } = useParams<{ sessionId?: string }>();
   const { t } = useTranslation('common');
   const { isMobile } = useDeviceSettings({ trackPWA: false });
+  const isAdmin = useIsAdmin();
   const { ws, sendMessage, subscribe } = useWebSocket();
 
   const {
@@ -61,6 +63,7 @@ function AppContentInner() {
   } = useSessionProtection();
 
   const {
+    projects,
     selectedProject,
     selectedSession,
     activeTab,
@@ -83,6 +86,8 @@ function AppContentInner() {
     isMobile,
     activeSessions: processingSessions,
   });
+
+  const showSidebar = isAdmin || projects.length > 0 || Boolean(selectedProject);
 
   const refreshRunningSessions = useCallback(async () => {
     try {
@@ -192,11 +197,13 @@ function AppContentInner() {
 
   return (
     <div className="fixed inset-0 flex bg-background" style={{ bottom: 'var(--keyboard-height, 0px)' }}>
-      {!isMobile ? (
+      {showSidebar && !isMobile ? (
         <div className="h-full flex-shrink-0 border-r border-border/50">
           <Sidebar {...sidebarSharedProps} />
         </div>
-      ) : (
+      ) : null}
+
+      {showSidebar && isMobile ? (
         <div
           className={`fixed inset-0 z-50 flex transition-all duration-150 ease-out ${sidebarOpen ? 'visible opacity-100' : 'invisible opacity-0'
             }`}
@@ -223,7 +230,7 @@ function AppContentInner() {
             <Sidebar {...sidebarSharedProps} />
           </div>
         </div>
-      )}
+      ) : null}
 
       <div className="flex min-w-0 flex-1 flex-col">
         <MainContent

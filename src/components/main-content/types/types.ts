@@ -67,6 +67,7 @@ export type MainContentHeaderProps = {
   shouldShowTasksTab: boolean;
   shouldShowBrowserTab: boolean;
   shouldShowPowerUserTabs: boolean;
+  shouldShowPlugins: boolean;
   isMobile: boolean;
   onMenuClick: () => void;
 };
