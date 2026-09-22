@@ -12,6 +12,7 @@
  * - WebSocket message streaming
  */
 
+import { spawnSync } from 'node:child_process';
 import crypto from 'crypto';
 import { promises as fs } from 'fs';
 import { existsSync } from 'node:fs';
@@ -178,6 +179,32 @@ function locateHostClaudeExecutable() {
   return null;
 }
 
+// A claude binary can exist yet still fail to launch under the service's clean
+// systemd environment — e.g. an nvm/npm wrapper whose `#!/usr/bin/env node`
+// shebang cannot resolve `node` without a login-shell PATH. Probe once per path
+// so a bad pin degrades to the bundled CLI instead of breaking every session.
+const launchPreflightCache = new Map();
+
+function launchesSuccessfully(executablePath) {
+  if (launchPreflightCache.has(executablePath)) {
+    return launchPreflightCache.get(executablePath);
+  }
+  let ok = false;
+  try {
+    const probe = spawnSync(executablePath, ['--version'], { timeout: 15000 });
+    ok = !probe.error && probe.status === 0;
+  } catch {
+    ok = false;
+  }
+  launchPreflightCache.set(executablePath, ok);
+  if (!ok) {
+    console.warn(
+      `[claude-sdk] claude binary at ${executablePath} failed launch preflight (spawn --version); ignoring it so the SDK bundled CLI can be used. Check CLAUDE_CLI_PATH / the service PATH.`
+    );
+  }
+  return ok;
+}
+
 function mapCliOptionsToSDK(options = {}) {
   const { sessionId, cwd, toolsSettings, permissionMode, effort, resume, forkSession } = options;
 
@@ -189,20 +216,30 @@ function mapCliOptionsToSDK(options = {}) {
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
   // which does not reliably follow npm's shell wrappers like cross-spawn does.
-  // On Linux, only pin the option when it points at a real file (explicit env or a
-  // resolvable binary); otherwise leave it unset so the SDK uses its bundled CLI.
+  // On Linux, only pin the option when it points at a real, launchable file;
+  // otherwise leave it unset so the SDK uses its bundled CLI.
   const resolvedClaudeExecutable = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH);
-  if (
-    process.platform === 'win32' ||
-    process.env.CLAUDE_CLI_PATH ||
-    existsSync(resolvedClaudeExecutable)
-  ) {
+  if (process.platform === 'win32') {
     sdkOptions.pathToClaudeCodeExecutable = resolvedClaudeExecutable;
   } else {
-    const hostClaudeExecutable = locateHostClaudeExecutable();
-    if (hostClaudeExecutable) {
-      sdkOptions.pathToClaudeCodeExecutable = hostClaudeExecutable;
+    let executable = null;
+    if (existsSync(resolvedClaudeExecutable)) {
+      executable = resolvedClaudeExecutable;
+    } else if (process.env.CLAUDE_CLI_PATH) {
+      console.warn(
+        `[claude-sdk] CLAUDE_CLI_PATH=${resolvedClaudeExecutable} does not exist; ignoring the pin.`
+      );
     }
+    if (!executable) {
+      executable = locateHostClaudeExecutable();
+    }
+    if (executable && !launchesSuccessfully(executable)) {
+      executable = null;
+    }
+    if (executable) {
+      sdkOptions.pathToClaudeCodeExecutable = executable;
+    }
+    // else: option stays unset → SDK bundled CLI (always available)
   }
 
   if (cwd) {
