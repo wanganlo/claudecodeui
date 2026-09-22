@@ -12,6 +12,7 @@ import { useSessionProtection } from '../../hooks/useSessionProtection';
 import { useProjectsState } from '../../hooks/useProjectsState';
 import { useIsAdmin } from '../auth/context/AuthContext';
 import { api } from '../../utils/api';
+import VoiceConsoleWidget from '../voice-console/VoiceConsoleWidget';
 
 type RunningSessionApiItem = {
   sessionId?: unknown;
@@ -258,6 +259,8 @@ function AppContentInner() {
           newSessionTrigger={newSessionTrigger}
         />
       </div>
+
+      <VoiceConsoleWidget />
 
       <CommandPalette
         selectedProject={selectedProject}

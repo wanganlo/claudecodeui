@@ -1,61 +1,41 @@
 # Handoff — claude-ui
 
-> 最后更新: 2026-07-14 21:20:19
+> 最后更新: 2026-09-22 15:32 (CC,job-20260922-145732)
 > 用途: 换会话时秒回状态。新会话进项目**先读本文件**;再次 /handoff 时旧版自动归档到 handoff_history/。
 
-## 当前任务
-简化 CloudCLI / claude-ui 的普通用户界面,并修复管理员用户管理问题。本轮所有需求已闭环,当前处于**已验证、已部署**状态。
+## 当前状态:**已修复、已验证、在线**
+2026-09-22 磊哥报『网页里没法讲话』(点项目无响应→永远停在 Choose Your Project→无输入框)。当日已恢复,3001 与 8080(磊哥 nginx 入口)双通道 E2E 验证全链路通:点项目→开会话→输入→发送→模型响应,零 pageerror。🎤语音悬浮按钮保留。
 
-## 进度(干到哪了)
-- ✅ 普通用户登录后只显示聊天输入框,左侧边栏默认隐藏。
-- ✅ 普通用户发第一条消息后,自动创建 Default Chat 项目并显示边栏。
-- ✅ 普通用户界面隐藏 Settings / Report Issue / Join Community / 版本 footer。
-- ✅ 普通用户隐藏 Tasks / Browser / Claude Watch 等插件标签页。
-- ✅ 普通用户跳过 TaskMaster "not configured" 提示和 onboarding(Git 配置 / Connect Agents)。
-- ✅ 管理员 Settings → Users 页面 "Failed to load users" 报错已修复。
-- ✅ 管理员 Users 页面已新增 Edit / Delete 用户功能(含密码重置)。
-- ✅ 点击 Projects 侧边栏不再出现 `/home/admin` 这个 admin 目录。
-- ✅ 已检查并过滤其他可能暴露 `/home/admin` 的表面:Projects 列表、归档项目、会话搜索、归档会话、实时 WebSocket 推送。
-- ✅ 前后端已重新构建,`cloudcli.service` 已重启并验证生效。
+## 事故结论(根因链)
+1. **直接死因**:线上 dist 是 8-31 语音会话重建的 `index-DC5lgylu.js`,该 bundle 点项目行不触发任何 API/DOM 变化(8-31 会话只验收了落地页🎤,没回归"点项目→聊天"主路径)。
+2. **A/B 铁证**:换回 8-12 构建的 `index-qym-iWte.js`(dist.bak-before-voice-20260831/)全链路立即正常 → 排除服务端/网络/WS。
+3. **修复动作(15:14-15:18 由并行 CC 实例完成,本实例独立验证)**:vite.config.js `base: './'→'/'` + `cloudcli update`(服务端 1.36.0→1.37.3)+ 重建(现役 bundle `index-D7tZJKEx.js`)+ 15:18:42 重启 cloudcli.service。
+4. **疑似双通道重复派单**:本工单同时走了 task-jobs 与 zmem auto-act 两条通道,两个 headless CC 在同一工作树并行干活(幸未互相破坏,但有此风险)。
 
-## 卡点 / 待确认
-- [x] 无卡点。所有改动已跑通并截图/接口验证。
-- 待答复/待操作标记(如有): 无
+## ⚠️ 铁律修订(覆盖 8-31 旧铁律)
+- ~~"前端构建只用 build:client,base 必须 './'"~~ → **现役正确配置是 `base: '/'`**(v1.37.3 客户端 + base='/' 已实测工作;'./' 时代的 8-31 反而是坏的)。构建仍只用 `npm run build:client`,绝不用 build:ui(=vite.config.ts,base=/claude/,白屏)。
+- 旧教训仍有效:改 base 必须先备份 dist + vite.config.js,改完必须回归"点项目→发消息"主路径,不能只看落地页。
 
-## 下一步(接手后先做这个)
-1. 若磊哥提出新的 UI 简化点,按同样模式在对应组件加 `useIsAdmin()`  gate + 后端过滤。
-2. 若后续要彻底清理 DB 里已有的 `/home/admin` project/sessions 行,可单独写迁移脚本(目前只是隐藏,未删除数据)。
+## 备份地图(2026-09-22 现状,勿乱删)
+| 目录 | 内容 | 状态 |
+|---|---|---|
+| `dist/`(index-D7tZJKEx.js) | 现役,v1.37.3 客户端 | ✅ 在线验证通过 |
+| `dist.bak-before-basefix-20260922/`(qym-iWte) | 8-12 旧可用构建(并行者留) | 可用回退 |
+| `dist.bak-test-20260922/`(DC5lgylu) | 8-31 **坏**构建(本会话留证) | 勿再上线 |
+| `dist.bak-before-voice-20260831/`(qym-iWte) | 8-12 旧可用构建 | 可用回退 |
+| `vite.config.js.bak-relative-base-20260922` | base='./' 旧配置备份 | 留证 |
 
-## 关键文件 / 本轮改动
-- `server/shared/utils.ts` — 新增 `isHiddenProjectPath()` / `HOME_PROJECT_PATH`,统一判定用户 home 目录为隐藏项目路径。
-- `server/modules/projects/services/projects-with-sessions-fetch.service.ts` — `getProjectsWithSessions` / `getArchivedProjectsWithSessions` 过滤 `/home/admin`。
-- `server/modules/providers/services/session-conversations-search.service.ts` — 会话搜索排除 `/home/admin` 路径下的会话。
-- `server/modules/providers/services/sessions.service.ts` — `listArchivedSessions` 排除 `/home/admin` 路径。
-- `server/modules/providers/services/sessions-watcher.service.ts` — 实时 `session_upserted` 事件过滤 `/home/admin`。
-- `src/components/app/AppContent.tsx` — 普通新用户默认隐藏左侧边栏。
-- `src/components/main-content/view/MainContent.tsx` — 非管理员隐藏 Tasks / Browser / 插件标签,并重置到 chat。
-- `src/components/main-content/view/subcomponents/LandingChatView.tsx` — 普通用户落地页,首条消息自动创建 Default Chat 项目并进入会话。
-- `src/components/main-content/view/subcomponents/MainContentTabSwitcher.tsx` / `MainContentHeader.tsx` / `types/types.ts` — 新增 `shouldShowPlugins` 控制插件标签渲染。
-- `src/components/sidebar/view/subcomponents/SidebarFooter.tsx` / `SidebarCollapsed.tsx` — 非管理员隐藏设置/反馈/社区入口。
-- `src/components/auth/view/ProtectedRoute.tsx` — 非管理员跳过 onboarding。
-- `src/components/task-master/view/NextTaskBanner.tsx` — 非管理员不显示 TaskMaster 提示条。
-- `server/modules/projects/projects.routes.ts` — 新增 `POST /api/projects/ensure-default-chat`。
-- `server/routes/auth.js` — 新增 `PUT /api/auth/users/:id` 和 `DELETE /api/auth/users/:id`,支持编辑/删除/改密码。
-- `server/modules/database/repositories/users.ts` — 新增 `updateUser` / `updatePassword` / `deleteUser`。
-- `src/utils/api.js` — 新增 `api.auth.users.list/create/update/delete`。
-- `src/components/settings/view/tabs/UsersTab.tsx` — 重写用户管理 UI,增加 Edit/Delete 功能。
-- `dist/` 与 `dist-server/` — 已重新构建。
+## E2E 验证脚手架(下次直接用)
+- 脚本:`/home/admin/tmp/cui_verify_final.py <入口URL> <tag>`(自签 JWT=app_config.jwt_secret 签 {userId:1,username:'admin'},localStorage['auth-token'],Playwright 全链路)
+- **选择器铁坑**:侧边栏每个项目渲染移动端+桌面端两份 DOM,`text=.claude` 的 first 永远是隐藏副本——必须用 `text=.claude >> visible=true`。
+- 服务刚重启后 /api/projects 冷启动慢,必须 `wait_for_selector` 等列表出来再操作。
 
-## 别踩的坑
-- 测试 JWT 必须用 `/home/admin/.cloudcli/auth.db` 里 `app_config.jwt_secret` 的**完整 128 字符**,之前用了截断的 secret 导致 token 被误判为无效。
-- 运行中的服务读的是 `/home/admin/.cloudcli/auth.db`,不是 `dist-server/database/auth.db`;改完代码必须 `npm run build:server && npm run build:client && sudo systemctl restart cloudcli.service`。
-- `normalizeProjectPath()` 保留文件系统根路径,所以 `/home/admin` 不会被截断,必须显式用 `isHiddenProjectPath()` 过滤。
-- 普通用户首次进入时 app 有一个同步/加载过程,Playwright 截图要等待落地页标题或聊天输入框出现,不能只看 loading spinner。
+## 别踩的坑(沿旧版)
+- 运行时 DB 是 `/home/admin/.cloudcli/auth.db`(users 表:1=admin 磊哥、15=cjj、16=LinC);JWT secret 用完整 128 字符。
+- 改 server 代码要 `npm run build:server && npm run build:client && sudo systemctl restart cloudcli.service`;纯前端只 build:client 免重启。
+- 服务自带 auto-updater 会自己跑 git pull + npm install(日志 grep "Starting system update");上游有新版时侧栏会亮 "Update available"。
+- `/home/admin/.claude/commands/profile.md` YAML frontmatter 有语法错,服务端每次解析都刷 "Error parsing command file"(已知噪音,不影响功能,待修:第3行冒号)。
 
-## 相关 memory
-- [[oa-cashflow-ledger-rebuild-plan]]
-- [[oa-cashflow-report-chain]]
-- [[cc-llm-dashboard-architecture]]
-- [[磊哥授权 OA 自动登录]]
-- [[OA 自动登录 skill]]
-- [[三次以上操作自动生成 skill]]
+## 未完事项
+- 无阻塞。可选:① 侧栏 "Update available" 角标(上游有新版,非本事故范围) ② 清理 4 份 dist 备份(确认稳定一周后) ③ profile.md frontmatter 修复。
+- 相关 memory:[[claude-ui-base-config-and-e2e-20260922]](本机 memory 库)
