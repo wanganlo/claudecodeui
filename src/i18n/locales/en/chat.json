@@ -163,8 +163,16 @@
       "codex": "Ready to use Codex with {{model}}. Start typing your message below.",
       "gemini": "Ready to use Gemini with {{model}}. Start typing your message below.",
       "opencode": "Ready to use OpenCode with {{model}}. Start typing your message below.",
-      "default": "Select a provider above to begin"
+      "default": "Select a provider above to begin",
+      "profile": "Ready with {{name}} · {{model}}. Start typing your message below."
     },
+    "selectLlmTitle": "Choose an LLM (from settings)",
+    "llmGroupHeading": "Configured LLMs",
+    "currentBadge": "Active",
+    "switching": "Switching, about 10–90 s…",
+    "switchHint": "Choosing a different LLM switches the global provider via headroom (takes 10–90 s); it applies to new sessions and the CC bot alike.",
+    "settingsUnavailable": "cc-llm settings not found — showing native CLIs below.",
+    "nativeToggle": "Native CLIs (Anthropic / OpenAI / Google…)",
     "pressToSearch": "Press <kbd>{{shortcut}}</kbd> to search sessions, files, and commits"
   },
   "session": {

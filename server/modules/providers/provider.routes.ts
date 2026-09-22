@@ -6,6 +6,7 @@ import { providerCapabilitiesService } from '@/modules/providers/services/provid
 import { providerMcpService } from '@/modules/providers/services/mcp.service.js';
 import { providerModelsService } from '@/modules/providers/services/provider-models.service.js';
 import { providerSkillsService } from '@/modules/providers/services/skills.service.js';
+import { llmSettingsService } from '@/modules/providers/services/llm-settings.service.js';
 import { sessionConversationsSearchService } from '@/modules/providers/services/session-conversations-search.service.js';
 import { sessionsService } from '@/modules/providers/services/sessions.service.js';
 import type {
@@ -513,6 +514,29 @@ router.post(
       scope: payload.scope === 'user' ? 'user' : 'project',
     });
     res.status(201).json(createApiSuccessResponse({ results }));
+  }),
+);
+
+// ----------------- LLM settings (cc-llm bridge) -----------------
+// Backs the new-session LLM picker: lists the supplier profiles configured in
+// the cc-llm dashboard (settings-driven, not the native CLI providers).
+router.get(
+  '/llm-settings',
+  asyncHandler(async (req: Request, res: Response) => {
+    const settings = await llmSettingsService.getLlmSettings();
+    res.json(createApiSuccessResponse(settings));
+  }),
+);
+
+// Switching a profile is machine-global (rewrites settings.json + proxy.env and
+// restarts headroom), so it is admin-gated like the other global operations.
+router.post(
+  '/llm-settings/switch',
+  requireAdmin,
+  asyncHandler(async (req: Request, res: Response) => {
+    const profileId = typeof req.body?.profileId === 'string' ? req.body.profileId : '';
+    const result = await llmSettingsService.switchLlmProfile(profileId);
+    res.json(createApiSuccessResponse(result));
   }),
 );
 
