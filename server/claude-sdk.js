@@ -14,6 +14,7 @@
 
 import crypto from 'crypto';
 import { promises as fs } from 'fs';
+import { existsSync } from 'node:fs';
 import os from 'os';
 import path from 'path';
 
@@ -156,6 +157,27 @@ function matchesToolPermission(entry, toolName, input) {
   return false;
 }
 
+// Fallback hunt for a host-installed claude binary when CLAUDE_CLI_PATH is unset.
+// Newer agent SDKs require a real file for pathToClaudeCodeExecutable — a bare
+// 'claude' makes them throw "Claude Code native binary not found at claude".
+function locateHostClaudeExecutable() {
+  const candidates = [
+    path.join(os.homedir(), '.local', 'bin', 'claude'),
+    '/usr/local/bin/claude',
+    '/usr/bin/claude',
+  ];
+  for (const candidate of candidates) {
+    try {
+      if (existsSync(candidate)) {
+        return candidate;
+      }
+    } catch {
+      // unreachable path is fine, keep probing
+    }
+  }
+  return null;
+}
+
 function mapCliOptionsToSDK(options = {}) {
   const { sessionId, cwd, toolsSettings, permissionMode, effort, resume, forkSession } = options;
 
@@ -167,7 +189,21 @@ function mapCliOptionsToSDK(options = {}) {
 
   // Resolve the executable eagerly on Windows because the SDK uses raw child_process.spawn,
   // which does not reliably follow npm's shell wrappers like cross-spawn does.
-  sdkOptions.pathToClaudeCodeExecutable = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH);
+  // On Linux, only pin the option when it points at a real file (explicit env or a
+  // resolvable binary); otherwise leave it unset so the SDK uses its bundled CLI.
+  const resolvedClaudeExecutable = resolveClaudeCodeExecutablePath(process.env.CLAUDE_CLI_PATH);
+  if (
+    process.platform === 'win32' ||
+    process.env.CLAUDE_CLI_PATH ||
+    existsSync(resolvedClaudeExecutable)
+  ) {
+    sdkOptions.pathToClaudeCodeExecutable = resolvedClaudeExecutable;
+  } else {
+    const hostClaudeExecutable = locateHostClaudeExecutable();
+    if (hostClaudeExecutable) {
+      sdkOptions.pathToClaudeCodeExecutable = hostClaudeExecutable;
+    }
+  }
 
   if (cwd) {
     sdkOptions.cwd = cwd;
