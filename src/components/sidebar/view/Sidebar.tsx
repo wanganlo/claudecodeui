@@ -1,4 +1,4 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { useDeviceSettings } from '../../../hooks/useDeviceSettings';
@@ -14,6 +14,7 @@ import type { MCPServerStatus, SidebarProps } from '../types/types';
 import SidebarCollapsed from './subcomponents/SidebarCollapsed';
 import SidebarContent from './subcomponents/SidebarContent';
 import SidebarModals from './subcomponents/SidebarModals';
+import FilesProjectPickerModal from '../../files-project-picker';
 import type { SidebarProjectListProps } from './subcomponents/SidebarProjectList';
 
 type TaskMasterSidebarContext = {
@@ -52,6 +53,7 @@ function Sidebar({
   const { setCurrentProject, mcpServerStatus } = useTaskMaster() as TaskMasterSidebarContext;
   const { tasksEnabled } = useTasksSettings();
   const paletteOps = usePaletteOps();
+  const [showFilesPicker, setShowFilesPicker] = useState(false);
 
   const {
     isSidebarCollapsed,
@@ -221,6 +223,15 @@ function Sidebar({
         t={t}
       />
 
+      <FilesProjectPickerModal
+        isOpen={showFilesPicker}
+        onClose={() => setShowFilesPicker(false)}
+        onOpenAdvancedWizard={() => {
+          setShowFilesPicker(false);
+          setShowNewProject(true);
+        }}
+      />
+
       {isSidebarCollapsed ? (
         <SidebarCollapsed
           onExpand={handleExpandSidebar}
@@ -296,7 +307,7 @@ function Sidebar({
               void refreshProjects();
             }}
             isRefreshing={isRefreshing}
-            onCreateProject={() => setShowNewProject(true)}
+            onCreateProject={() => setShowFilesPicker(true)}
             onCollapseSidebar={handleCollapseSidebar}
             updateAvailable={updateAvailable}
             restartRequired={restartRequired}

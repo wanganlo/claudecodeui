@@ -140,5 +140,28 @@
     "deleteAllData": "Delete all data permanently",
     "allConversationsDeleted": "The project will be removed from the sidebar. Your files, memories, and session data will be preserved.",
     "cannotUndo": "You can re-add the project later."
+  },
+  "filesPicker": {
+    "title": "Pick a project",
+    "searchPlaceholder": "Search by name, alias or description...",
+    "loading": "Loading projects...",
+    "loadFailed": "Failed to load project list",
+    "empty": "No projects match your search",
+    "unregistered": "Not linked",
+    "unregisteredHint": "Will be linked automatically on first use",
+    "newProject": "New project",
+    "advancedPath": "Custom path...",
+    "backToList": "Back to list",
+    "createTitle": "Create a new project",
+    "nameLabel": "Project name",
+    "namePlaceholder": "e.g. customer-portal or my-new-app",
+    "nameHint": "Folder created under ~/files/projects/",
+    "descriptionLabel": "Description",
+    "descriptionPlaceholder": "What is this project for? (goes into HANDOFF.md)",
+    "createHint": "Creates the folder, initializes TaskMaster, writes a HANDOFF.md skeleton, then starts a guided session to complete the project description.",
+    "createButton": "Create & start guided session",
+    "creating": "Creating...",
+    "startFailed": "Failed to start a session in this project",
+    "guidingMessage": "Please guide me through setting up this new project. This folder was just created with a HANDOFF.md skeleton (and a TaskMaster scaffold if init succeeded). 1) Ask me about the project goal, scope, key deliverables and milestones; 2) Write the conclusions into HANDOFF.md (project description / current task / next steps) and .taskmaster/docs/prd.txt; 3) If TaskMaster init did not succeed, run `npx task-master init -y` first; 4) Finally use TaskMaster's parse-prd to generate the initial task list. Start by asking me your questions."
   }
 }

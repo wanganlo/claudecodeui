@@ -140,5 +140,28 @@
     "deleteAllData": "永久删除所有数据",
     "allConversationsDeleted": "项目将从侧边栏中移除。您的文件、记忆和会话数据将会保留。",
     "cannotUndo": "您可以稍后重新添加此项目。"
+  },
+  "filesPicker": {
+    "title": "选择项目",
+    "searchPlaceholder": "输入关键字,按名称 / 别名 / 描述过滤...",
+    "loading": "项目加载中...",
+    "loadFailed": "项目列表加载失败",
+    "empty": "没有匹配的项目",
+    "unregistered": "未关联",
+    "unregisteredHint": "首次使用时会自动关联",
+    "newProject": "新项目",
+    "advancedPath": "自定义路径...",
+    "backToList": "返回列表",
+    "createTitle": "建立新项目",
+    "nameLabel": "项目名称",
+    "namePlaceholder": "例如:仟源客户管理 或 my-new-app",
+    "nameHint": "将在 ~/files/projects/ 下创建同名目录",
+    "descriptionLabel": "项目说明",
+    "descriptionPlaceholder": "这个项目是做什么的?(会写进 HANDOFF.md)",
+    "createHint": "将创建项目目录、初始化 TaskMaster、写入 HANDOFF.md 骨架,并自动开始引导会话帮你补全项目说明。",
+    "createButton": "创建并开始引导会话",
+    "creating": "创建中...",
+    "startFailed": "在该项目里开启会话失败",
+    "guidingMessage": "请引导我完成这个新项目的建档。目录是刚创建的,里面已有 HANDOFF.md 骨架(如果 TaskMaster 初始化成功还有 .taskmaster)。1) 先向我提问,问清项目目标、范围、关键交付物和里程碑;2) 把结论写进 HANDOFF.md(项目描述/当前任务/下一步)和 .taskmaster/docs/prd.txt;3) 如果 .taskmaster 不存在,先运行 npx task-master init -y;4) 最后用 task-master 的 parse-prd 生成初始任务列表。现在开始提问吧。"
   }
 }

@@ -2,6 +2,7 @@ import express from 'express';
 import path from 'node:path';
 
 import { createProject, updateProjectDisplayName } from '@/modules/projects/services/project-management.service.js';
+import { createFilesProject, listFilesProjects } from '@/modules/projects/services/files-projects.service.js';
 import { startCloneProject } from '@/modules/projects/services/project-clone.service.js';
 import { getProjectTaskMaster } from '@/modules/projects/services/projects-has-taskmaster.service.js';
 import { AppError, asyncHandler, createApiSuccessResponse, requireAdmin, requireUserId, WORKSPACES_ROOT } from '@/shared/utils.js';
@@ -169,6 +170,25 @@ router.post(
           ? 'Default chat project reused successfully'
           : 'Default chat project created successfully',
     });
+  }),
+);
+
+router.get(
+  '/files-list',
+  asyncHandler(async (req, res) => {
+    const projects = await listFilesProjects(requireUserId(req) as number);
+    res.json({ projects });
+  }),
+);
+
+router.post(
+  '/create-files-project',
+  asyncHandler(async (req, res) => {
+    const requestBody = (req.body ?? {}) as Record<string, unknown>;
+    const name = typeof requestBody.name === 'string' ? requestBody.name : '';
+    const description = typeof requestBody.description === 'string' ? requestBody.description : '';
+    const result = await createFilesProject({ name, description });
+    res.json({ success: true, project: result });
   }),
 );
 
